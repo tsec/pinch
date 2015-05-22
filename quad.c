@@ -73,7 +73,12 @@ void quad_resize(const struct quad_obj *quad, GLfloat maxU, GLfloat maxV)
 		minU, maxV,
 	};
 
-	GLfloat fixme[] = { 1.0f, 0.0f, 1.0f, 0.5f };
+	GLfloat fixme[] = { 
+		1.0f, 1.0f, 1.0f, 1.0f,
+		1.0f, 1.0f, 1.0f, 1.0f,
+		1.0f, 1.0f, 1.0f, 1.0f,
+		1.0f, 1.0f, 1.0f, 1.0f,
+	 };
 
 	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_vertices);
 	glBufferData(GL_ARRAY_BUFFER,
@@ -85,7 +90,7 @@ void quad_resize(const struct quad_obj *quad, GLfloat maxU, GLfloat maxV)
 
 	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_color);
 	glBufferData(GL_ARRAY_BUFFER,
-		1 * sizeof(GLfloat) * 4, fixme, GL_STATIC_DRAW);
+		quad_vertex_count * sizeof(GLfloat) * 4, fixme, GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -111,6 +116,11 @@ void quad_draw(const struct quad_obj *quad, const struct shader_obj *shader)
 	glVertexAttribPointer(shader->a_texcoord, 2, GL_FLOAT,
 		GL_FALSE, 2 * sizeof(GLfloat), NULL);
 	glEnableVertexAttribArray(shader->a_texcoord);
+
+	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_color);
+	glVertexAttribPointer(shader->a_color, 4, GL_FLOAT,
+		GL_FALSE, 4 * sizeof(GLfloat), NULL);
+	glEnableVertexAttribArray(shader->a_color);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad->buf_indices);
 

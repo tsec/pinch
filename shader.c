@@ -35,12 +35,6 @@ int shader_init(struct shader_obj *shader, const char *vs_src, const char *fs_sr
 		shader->a_color     = glGetAttribLocation(shader->program, "a_color");
 		shader->u_vp_matrix = glGetUniformLocation(shader->program, "u_vp_matrix");
 		shader->u_texture   = glGetUniformLocation(shader->program, "u_texture");
-fprintf(stderr, "pos: %d\ntex: %d\ncol: %d\nmat: %d\ntext: %d\n", 
-shader->a_position ,
-shader->a_texcoord ,
-shader->a_color    ,
-shader->u_vp_matrix,
-shader->u_texture  	);
 		ret = 0;
 	}
 

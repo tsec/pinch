@@ -62,8 +62,8 @@ static const char *vertex_shader_src =
 	"varying lowp vec4 v_color;"
 	"void main() {"
 		"v_texcoord = a_texcoord;"
-		// "v_color = a_color;"
-		"v_color = vec4(1.0, 1.0, 1.0, 1.0);"
+		"v_color = a_color;"
+		// "v_color = vec4(1.0, 1.0, 1.0, 1.0);"
 		"gl_Position = u_vp_matrix * a_position;"
 	"}";
 

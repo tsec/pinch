@@ -22,7 +22,7 @@
 #include "shader.h"
 #include "quad.h"
 
-#define BUFFER_COUNT 3
+#define BUFFER_COUNT 4
 
 static const int quad_vertex_count = 4;
 static const int quad_index_count = 6;
@@ -73,16 +73,26 @@ void quad_resize(const struct quad_obj *quad, GLfloat maxU, GLfloat maxV)
 		minU, maxV,
 	};
 
+	GLfloat fixme[] = { 1.0f, 0.0f, 1.0f, 0.5f };
+
 	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_vertices);
 	glBufferData(GL_ARRAY_BUFFER,
 		quad_vertex_count * sizeof(GLfloat) * 3, quad->vertices, GL_STATIC_DRAW);
+
 	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_uvs);
 	glBufferData(GL_ARRAY_BUFFER,
 		quad_vertex_count * sizeof(GLfloat) * 2, uvs, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_color);
+	glBufferData(GL_ARRAY_BUFFER,
+		1 * sizeof(GLfloat) * 4, fixme, GL_STATIC_DRAW);
+
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad->buf_indices);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER,
 		quad_index_count * sizeof(GL_UNSIGNED_SHORT), indices, GL_STATIC_DRAW);
+
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 

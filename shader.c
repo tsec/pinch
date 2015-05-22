@@ -30,11 +30,17 @@ int shader_init(struct shader_obj *shader, const char *vs_src, const char *fs_sr
 
 	memset(shader, 0, sizeof(struct shader_obj));
 	if ((shader->program = create_program(vs_src, fs_src))) {
-		shader->a_position  = glGetAttribLocation(shader->program,  "a_position");
-		shader->a_texcoord  = glGetAttribLocation(shader->program,  "a_texcoord");
+		shader->a_position  = glGetAttribLocation(shader->program, "a_position");
+		shader->a_texcoord  = glGetAttribLocation(shader->program, "a_texcoord");
+		shader->a_color     = glGetAttribLocation(shader->program, "a_color");
 		shader->u_vp_matrix = glGetUniformLocation(shader->program, "u_vp_matrix");
 		shader->u_texture   = glGetUniformLocation(shader->program, "u_texture");
-
+fprintf(stderr, "pos: %d\ntex: %d\ncol: %d\nmat: %d\ntext: %d\n", 
+shader->a_position ,
+shader->a_texcoord ,
+shader->a_color    ,
+shader->u_vp_matrix,
+shader->u_texture  	);
 		ret = 0;
 	}
 

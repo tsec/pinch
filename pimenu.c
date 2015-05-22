@@ -54,21 +54,26 @@ static GLuint textures[TEXTURE_COUNT];
 static void *texture_bitmaps[TEXTURE_COUNT];
 
 static const char *vertex_shader_src =
-	"uniform mat4 u_vp_matrix;\n"
-	"attribute vec4 a_position;\n"
-	"attribute vec2 a_texcoord;\n"
-	"varying mediump vec2 v_texcoord;\n"
-	"void main() {\n"
-	"   v_texcoord = a_texcoord;\n"
-	"   gl_Position = u_vp_matrix * a_position;\n"
-	"}\n";
+	"uniform mat4 u_vp_matrix;"
+	"attribute vec4 a_position;"
+	"attribute vec2 a_texcoord;"
+	"attribute vec4 a_color;"
+	"varying mediump vec2 v_texcoord;"
+	"varying lowp vec4 v_color;"
+	"void main() {"
+		"v_texcoord = a_texcoord;"
+		// "v_color = a_color;"
+		"v_color = vec4(1.0, 1.0, 1.0, 1.0);"
+		"gl_Position = u_vp_matrix * a_position;"
+	"}";
 
 static const char *fragment_shader_src =
-	"varying mediump vec2 v_texcoord;\n"
-	"uniform sampler2D u_texture;\n"
-	"void main() {\n"
-	"   gl_FragColor = texture2D(u_texture, v_texcoord);\n"
-	"}\n";
+	"varying mediump vec2 v_texcoord;"
+	"uniform sampler2D u_texture;"
+	"varying lowp vec4 v_color;"
+	"void main() {"
+		"gl_FragColor = texture2D(u_texture, v_texcoord) * v_color;"
+	"}";
 
 static struct phl_matrix projection;
 
@@ -209,8 +214,8 @@ static int init_video()
 			phl_gles_shutdown();
 			return 1;
 		}
-
 		quad_set_vertices(&quads[i], 12, quad_vertices);
+
 		if (shader_init(&shaders[i], vertex_shader_src, fragment_shader_src) != 0) {
 			phl_gles_shutdown();
 			return 1;

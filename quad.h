@@ -21,6 +21,7 @@ struct quad_obj {
 	GLuint buf_uvs;
 	GLuint buf_vertices;
 	GLuint buf_indices;
+	GLuint buf_color;
 
 	GLfloat vertices[12];
 };

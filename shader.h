@@ -21,6 +21,7 @@ struct shader_obj {
 	GLuint program;
 	GLint a_position;
 	GLint a_texcoord;
+	GLint a_color;
 	GLint u_vp_matrix;
 	GLint u_texture;
 };

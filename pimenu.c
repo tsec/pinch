@@ -31,6 +31,7 @@
 #include "temp.h"
 
 #define PRELOAD_MARGIN 2
+#define SHADE_FACTOR   1.33f
 
 #define TEXTURE_COUNT 3
 #define TEXTURE_WIDTH 512
@@ -41,14 +42,11 @@
 
 #define JOY_DEADZONE 0x4000
 
-#define EVENT_UPDATE_SCREEN 1
-
 static int init_video();
 static void destroy_video();
 static void reset_bounds(struct gamecard *p, struct gamecard *n);
 static void draw_shit(struct gamecard *p, struct gamecard *n);
 static void handle_event(SDL_Event *event);
-static void post_update_screen();
 
 static GLuint textures[TEXTURE_COUNT];
 static void *texture_bitmaps[TEXTURE_COUNT];
@@ -63,7 +61,6 @@ static const char *vertex_shader_src =
 	"void main() {"
 		"v_texcoord = a_texcoord;"
 		"v_color = a_color;"
-		// "v_color = vec4(1.0, 1.0, 1.0, 1.0);"
 		"gl_Position = u_vp_matrix * a_position;"
 	"}";
 
@@ -92,17 +89,18 @@ static const GLfloat quad_vertices[] = {
 #define QUADS 2
 
 static struct quad_obj quads[QUADS];
-static struct shader_obj shaders[QUADS];
+static struct shader_obj shader;
 
 int pim_quit = 0;
 
 #define ANIM_NONE 0
 #define ANIM_L2R  1
 #define ANIM_R2L  2
+static const float frame_speed = 0.01f;
 
-static float current_frame = 0.0f;
-static const float frame_incr = 0.01f;
 static int current_anim = ANIM_NONE;
+static float current_frame = 0.0f;
+static float frame_incr;
 
 static void preload(int current)
 {
@@ -118,37 +116,51 @@ static void preload(int current)
 		struct gamecard *gc = &gamecards[card_index];
 		if (gc->status == 0) {
 			// A race condition is possible, but the bitmap loader will check
-			// again safely
+			// again in thread-safe fashion
 			add_to_queue(&gamecards[card_index]);
 		}
 	}
-}
-
-static void post_update_screen()
-{
-	// FIXME
-	// SDL_Event event;
-	// event.type = SDL_USEREVENT;
-	// event.user.code = EVENT_UPDATE_SCREEN;
-
-	// SDL_PushEvent(&event);
-}
-
-static void handle_update_screen()
-{
-	preload(selected_card);
-	draw_shit(&gamecards[previous_card], &gamecards[selected_card]);
 }
 
 static void handle_event(SDL_Event *event)
 {
 	switch (event->type) {
 	case SDL_USEREVENT:
-		switch (event->user.code) {
-		case EVENT_UPDATE_SCREEN:
-			fprintf(stderr, "Received UpdateScreen event\n");
-			handle_update_screen();
-			break;
+		// switch (event->user.code) {
+		// }
+		break;
+	case SDL_KEYUP:
+		{
+			// FIXME
+			SDL_KeyboardEvent *keyEvent = (SDL_KeyboardEvent *)event;
+			if (keyEvent->keysym.sym == SDLK_LEFT) {
+				// Left
+				previous_card = selected_card;
+				if (--selected_card < 0) {
+					selected_card = card_count - 1;
+				}
+				current_anim = ANIM_R2L;
+				current_frame = 0.0f;
+				frame_incr = frame_speed;
+
+				reset_bounds(&gamecards[previous_card],
+					&gamecards[selected_card]);
+			} else if (keyEvent->keysym.sym == SDLK_RIGHT) {
+				// Right
+				previous_card = selected_card;
+				if (++selected_card >= card_count) {
+					selected_card = 0;
+				}
+
+				current_anim = ANIM_L2R;
+				current_frame = 0.0f;
+				frame_incr = frame_speed;
+
+				reset_bounds(&gamecards[previous_card],
+					&gamecards[selected_card]);
+			} else if (keyEvent->keysym.sym == SDLK_ESCAPE) {
+				pim_quit = 1;
+			}
 		}
 		break;
 	case SDL_JOYBUTTONDOWN:
@@ -171,10 +183,10 @@ static void handle_event(SDL_Event *event)
 						}
 						current_anim = ANIM_R2L;
 						current_frame = 0.0f;
+						frame_incr = frame_speed;
 
 						reset_bounds(&gamecards[previous_card],
 							&gamecards[selected_card]);
-						post_update_screen();
 					} else if (joyEvent->value > JOY_DEADZONE) {
 						// Right
 						previous_card = selected_card;
@@ -184,10 +196,10 @@ static void handle_event(SDL_Event *event)
 
 						current_anim = ANIM_L2R;
 						current_frame = 0.0f;
+						frame_incr = frame_speed;
 
 						reset_bounds(&gamecards[previous_card],
 							&gamecards[selected_card]);
-						post_update_screen();
 					}
 				} else if (joyEvent->axis == 1) {
 					if (joyEvent->value < -JOY_DEADZONE) {
@@ -208,18 +220,19 @@ static int init_video()
 		return 1;
 	}
 
+	if (shader_init(&shader, vertex_shader_src, fragment_shader_src) != 0) {
+		phl_gles_shutdown();
+		return 1;
+	}
+
 	int i;
 	for (i = 0; i < QUADS; i++) {
 		if (quad_init(&quads[i]) != 0) {
+			shader_destroy(&shader);
 			phl_gles_shutdown();
 			return 1;
 		}
-		quad_set_vertices(&quads[i], 12, quad_vertices);
-
-		if (shader_init(&shaders[i], vertex_shader_src, fragment_shader_src) != 0) {
-			phl_gles_shutdown();
-			return 1;
-		}
+		quad_set_vertices(&quads[i], quad_vertices);
 	}
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -250,6 +263,8 @@ static int init_video()
 
 	glDisable(GL_BLEND);
 
+	SDL_SetVideoMode(0,0,0,0);
+
 	return 0;
 }
 
@@ -257,9 +272,10 @@ static void destroy_video()
 {
 	fprintf(stderr, "Destroying video... ");
 
+	shader_destroy(&shader);
+
 	int i;
 	for (i = 0; i < QUADS; i++) {
-		shader_destroy(&shaders[i]);
 		quad_destroy(&quads[i]);
 	}
 
@@ -318,21 +334,30 @@ static void reset_bounds(struct gamecard *p, struct gamecard *n)
 
 static void draw_shit(struct gamecard *p, struct gamecard *n)
 {
-	phl_matrix_identity(&projection);
-	phl_matrix_ortho(&projection, -0.5f, 0.5f, -0.5f, +0.5f, -1.0f, 1.0f);
-	phl_matrix_scale(&projection, p->x_scale, p->y_scale, 0);
+	if (current_anim != ANIM_NONE) {
+		phl_matrix_identity(&projection);
+		phl_matrix_ortho(&projection, -0.5f, 0.5f, -0.5f, +0.5f, -1.0f, 1.0f);
+		phl_matrix_scale(&projection, p->x_scale, p->y_scale, 0);
 
-	struct shader_obj *shader = &shaders[0];
-	glUseProgram(shader->program);
-	glUniformMatrix4fv(shader->u_vp_matrix, 1, GL_FALSE, &projection.xx);
+		glUseProgram(shader.program);
+		glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, &projection.xx);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, textures[0]);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, textures[0]);
 
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT,
-		GL_RGB, GL_UNSIGNED_BYTE, texture_bitmaps[0]);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT,
+			GL_RGB, GL_UNSIGNED_BYTE, texture_bitmaps[0]);
 
-	quad_draw(&quads[0], shader);
+		GLfloat shade = 1.0f - SHADE_FACTOR * current_frame;
+		if (shade < 0) {
+			shade = 0;
+		}
+
+		GLfloat colors[] = { shade, shade, shade, 1.0f };
+		quad_set_all_vertex_colors(&quads[0], colors);
+
+		quad_draw(&quads[0], &shader);
+	}
 
 	phl_matrix_identity(&projection);
 	phl_matrix_ortho(&projection, -0.5f, 0.5f, -0.5f, +0.5f, -1.0f, 1.0f);
@@ -348,9 +373,8 @@ static void draw_shit(struct gamecard *p, struct gamecard *n)
 		phl_matrix_translate(&projection, -(1.0f - current_frame) * 2.0f, 0, 0);
 	}
 
-	shader = &shaders[1];
-	glUseProgram(shader->program);
-	glUniformMatrix4fv(shader->u_vp_matrix, 1, GL_FALSE, &projection.xx);
+	glUseProgram(shader.program);
+	glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, &projection.xx);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, textures[1]);
@@ -358,7 +382,7 @@ static void draw_shit(struct gamecard *p, struct gamecard *n)
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT,
 		GL_RGB, GL_UNSIGNED_BYTE, texture_bitmaps[1]);
 
-	quad_draw(&quads[1], shader);
+	quad_draw(&quads[1], &shader);
 
 	phl_gles_swap_buffers();
 }
@@ -366,9 +390,8 @@ static void draw_shit(struct gamecard *p, struct gamecard *n)
 void bitmap_loaded_callback(struct gamecard *gc)
 {
 	if (gc == &gamecards[selected_card]) {
-		// FIXME reset_bounds(gc);
+		// reset_bounds(gc);
 		// draw_shit(gc);
-		// post_update_screen();
 	}
 }
 
@@ -417,8 +440,6 @@ int main(int argc, char *argv[])
 		SDL_JoystickOpen(0);
 	}
 
-	post_update_screen();
-
 	SDL_Event event;
 	while (!pim_quit) {
 		while (SDL_PollEvent(&event)) {
@@ -430,14 +451,22 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		if (current_frame + frame_incr < 1.0f) {
-			current_frame += frame_incr;
-		} else if (current_frame > 0) {
-			current_anim = ANIM_NONE;
-			current_frame = 1.0f;
+		if (current_anim != ANIM_NONE) {
+			float next_frame = current_frame + frame_incr;
+			if (next_frame > 1.0f) {
+				next_frame = 1.0f;
+				current_anim = ANIM_NONE;
+			} else if (next_frame < 0.0f) {
+				next_frame = 0.0f;
+				current_anim = ANIM_NONE;
+			}
+
+			current_frame = next_frame;
 		}
 
-		handle_update_screen();
+		// FIXME: not needed at every frame!
+		preload(selected_card);
+		draw_shit(&gamecards[previous_card], &gamecards[selected_card]);
 	}
 
 	destroy_threads();

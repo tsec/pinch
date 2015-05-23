@@ -22,14 +22,13 @@ struct quad_obj {
 	GLuint buf_vertices;
 	GLuint buf_indices;
 	GLuint buf_color;
-
-	GLfloat vertices[12];
 };
 
 int phl_gl_closest_power_of_two(int n);
 
 int quad_init(struct quad_obj *quad);
-void quad_set_vertices(struct quad_obj *quad, int count, const GLfloat *vertices);
+void quad_set_vertices(const struct quad_obj *quad, const GLfloat *vertices);
+void quad_set_all_vertex_colors(const struct quad_obj *quad, const GLfloat *c);
 void quad_resize(const struct quad_obj *quad, GLfloat maxU, GLfloat maxV);
 void quad_draw(const struct quad_obj *quad, const struct shader_obj *shader);
 void quad_destroy(struct quad_obj *quad);

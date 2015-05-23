@@ -31,6 +31,9 @@ static const GLushort indices[] = {
 	0, 1, 2,
 	0, 2, 3,
 };
+static const GLfloat default_colors[] = {
+	1.0f, 1.0f, 1.0f, 1.0f,
+};
 
 int phl_gl_closest_power_of_two(int n)
 {
@@ -44,21 +47,37 @@ int phl_gl_closest_power_of_two(int n)
 int quad_init(struct quad_obj *quad)
 {
 	glGenBuffers(BUFFER_COUNT, &quad->buf_uvs);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad->buf_indices);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+		quad_index_count * sizeof(GL_UNSIGNED_SHORT), indices, GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	quad_set_all_vertex_colors(quad, default_colors);
 	return 0;
 }
 
-void quad_set_vertices(struct quad_obj *quad, int count, const GLfloat *vertices)
+void quad_set_vertices(const struct quad_obj *quad, const GLfloat *vertices)
 {
-	int i = 0, j;
-	if (count > 0 && count <= 12) {
-		for (i = 0; i < count; i++) {
-			quad->vertices[i] = vertices[i];
-		}
-	}
+	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_vertices);
+	glBufferData(GL_ARRAY_BUFFER,
+		quad_vertex_count * sizeof(GLfloat) * 3, vertices, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
 
-	for (j = i; j < 12; j++) {
-		quad->vertices[j] = 0.0f;
-	}
+void quad_set_all_vertex_colors(const struct quad_obj *quad, const GLfloat *c)
+{
+	GLfloat vertex_colors[] = {
+		c[0], c[1], c[2], c[3],
+		c[0], c[1], c[2], c[3],
+		c[0], c[1], c[2], c[3],
+		c[0], c[1], c[2], c[3],
+	};
+
+	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_color);
+	glBufferData(GL_ARRAY_BUFFER,
+		quad_vertex_count * sizeof(GLfloat) * 4, vertex_colors, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void quad_resize(const struct quad_obj *quad, GLfloat maxU, GLfloat maxV)
@@ -73,32 +92,10 @@ void quad_resize(const struct quad_obj *quad, GLfloat maxU, GLfloat maxV)
 		minU, maxV,
 	};
 
-	GLfloat fixme[] = { 
-		1.0f, 1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f, 1.0f,
-	 };
-
-	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_vertices);
-	glBufferData(GL_ARRAY_BUFFER,
-		quad_vertex_count * sizeof(GLfloat) * 3, quad->vertices, GL_STATIC_DRAW);
-
 	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_uvs);
 	glBufferData(GL_ARRAY_BUFFER,
 		quad_vertex_count * sizeof(GLfloat) * 2, uvs, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, quad->buf_color);
-	glBufferData(GL_ARRAY_BUFFER,
-		quad_vertex_count * sizeof(GLfloat) * 4, fixme, GL_STATIC_DRAW);
-
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad->buf_indices);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-		quad_index_count * sizeof(GL_UNSIGNED_SHORT), indices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void quad_draw(const struct quad_obj *quad, const struct shader_obj *shader)

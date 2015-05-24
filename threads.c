@@ -125,7 +125,6 @@ static void* bitmap_loader_func(void *arg)
 	}
 
 	pthread_mutex_unlock(&gc->lock);
-
 	bitmap_loaded_callback(gc);
 
 	threads_running_incr(-1);

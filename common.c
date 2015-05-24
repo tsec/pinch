@@ -51,17 +51,6 @@ void gamecard_set_bitmap(struct gamecard *gc,
 	gc->screenshot_height = height;
 	gc->screenshot_bitmap = bmp;
 	gc->status = STATUS_LOADED;
-	gc->x_scale = 1.0f;
-	gc->y_scale = 1.0f;
-
-	// Screen aspect ratio adjustment
-	float a = (float)phl_gles_screen_width / (float)phl_gles_screen_height;
-	float a0 = (float)width / (float)height;
-	if (a > a0) {
-		gc->x_scale = a0 / a;
-	} else {
-		gc->y_scale = a / a0;
-	}
 }
 
 // http://stackoverflow.com/questions/11296644/loading-png-textures-to-opengl-with-libpng-only

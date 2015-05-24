@@ -18,6 +18,7 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 
+#include "phl_gles.h"
 #include "shader.h"
 #include "quad.h"
 #include "common.h"
@@ -92,6 +93,24 @@ int sprite_set_texture(struct sprite *sprite, struct gamecard *gc)
 	float hr = (float)gc->screenshot_height / TEXTURE_HEIGHT;
 
 	quad_resize(&sprite->quad, wr, hr);
+
+	sprite->x_scale = 1.0f;
+	sprite->y_scale = 1.0f;
+
+	float a = 1.0f;
+	if (phl_gles_screen_height > 0) {
+		a = (float)phl_gles_screen_width / (float)phl_gles_screen_height;
+	}
+	float a0 = 1.0f;
+	if (gc->screenshot_height > 0) {
+		a0 = (float)gc->screenshot_width / (float)gc->screenshot_height;
+	}
+
+	if (a > a0) {
+		sprite->x_scale = a0 / a;
+	} else {
+		sprite->y_scale = a / a0;
+	}
 
 	free(row);
 	return 0;

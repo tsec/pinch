@@ -24,13 +24,12 @@
 extern int pim_quit;
 
 struct gamecard {
+	int id;
 	char *archive;
 	char *screenshot_path;
 	void *screenshot_bitmap;
 	int screenshot_width;
 	int screenshot_height;
-	float x_scale;
-	float y_scale;
 	int status;
 	pthread_mutex_t lock;
 };

@@ -18,10 +18,13 @@
 #define SPRITE_H
 
 struct sprite {
+	int id;
 	GLuint texture;
 	struct quad_obj quad;
 	float frame_value;
 	float frame_delta;
+	float x_scale;
+	float y_scale;
 };
 
 int sprite_init(struct sprite *sprite);

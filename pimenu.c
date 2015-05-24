@@ -49,7 +49,6 @@ static void draw_shit(struct gamecard *p, struct gamecard *n);
 static void handle_event(SDL_Event *event);
 
 static GLuint textures[TEXTURE_COUNT];
-static void *texture_bitmaps[TEXTURE_COUNT];
 
 static const char *vertex_shader_src =
 	"uniform mat4 u_vp_matrix;"
@@ -242,17 +241,7 @@ static int init_video()
 	// Textures
 	glGenTextures(TEXTURE_COUNT, textures);
 
-	int texture_size = TEXTURE_WIDTH * TEXTURE_HEIGHT * TEXTURE_BPP;
 	for (i = 0; i < TEXTURE_COUNT; i++) {
-		texture_bitmaps[i] = malloc(texture_size);
-		if (!texture_bitmaps[i]) {
-			phl_gles_shutdown();
-			for (i = 0; i < QUADS; i++) {
-				quad_destroy(&quads[i]);
-			}
-			return 1;
-		}
-
 		glBindTexture(GL_TEXTURE_2D, textures[i]);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEXTURE_WIDTH, TEXTURE_HEIGHT,
 			0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -281,55 +270,47 @@ static void destroy_video()
 
 	glDeleteTextures(TEXTURE_COUNT, textures);
 
-	for (i = 0; i < TEXTURE_COUNT; i++) {
-		if (texture_bitmaps[i]) {
-			free(texture_bitmaps[i]);
-		}
-	}
-
 	phl_gles_shutdown();
 
 	fprintf(stderr, "OK\n");
 }
 
-static void reset_bounds(struct gamecard *p, struct gamecard *n)
+static void retex(struct gamecard *gc, GLuint texture)
 {
-	quad_resize(&quads[0],
-		(float)p->screenshot_width / TEXTURE_WIDTH - 0.0f,
-		(float)p->screenshot_height / TEXTURE_HEIGHT);
-
-	unsigned char *src = (unsigned char *)p->screenshot_bitmap;
-	unsigned char *dst = (unsigned char *)texture_bitmaps[0];
-
 	int texture_pitch = TEXTURE_WIDTH * TEXTURE_BPP;
-	int bitmap_pitch = p->screenshot_width * 3;
+	unsigned char *row = (unsigned char *)calloc(texture_pitch, 1);
+	unsigned char *src = (unsigned char *)gc->screenshot_bitmap;
+
+	int bitmap_pitch = gc->screenshot_width * 3; // 3 == BPP
 	int copy_pitch = (bitmap_pitch < texture_pitch)
 		? bitmap_pitch : texture_pitch;
 
-	int y;
-	for (y = p->screenshot_height; y--;) {
-		memcpy(dst, src, copy_pitch);
-		dst += texture_pitch;
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	int i, h;
+	for (i = 0, h = gc->screenshot_height; i < h; i++) {
+		memcpy(row, src, copy_pitch);
 		src += bitmap_pitch;
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, TEXTURE_WIDTH, 1,
+			GL_RGB, GL_UNSIGNED_BYTE, row);
 	}
+
+	free(row);
+}
+
+static void reset_bounds(struct gamecard *p, struct gamecard *n)
+{
+	quad_resize(&quads[0],
+		(float)p->screenshot_width / TEXTURE_WIDTH,
+		(float)p->screenshot_height / TEXTURE_HEIGHT);
+
+	retex(p, textures[0]);
 
 	quad_resize(&quads[1],
-		(float)n->screenshot_width / TEXTURE_WIDTH - 0.0f,
+		(float)n->screenshot_width / TEXTURE_WIDTH,
 		(float)n->screenshot_height / TEXTURE_HEIGHT);
 
-	src = (unsigned char *)n->screenshot_bitmap;
-	dst = (unsigned char *)texture_bitmaps[1];
-
-	texture_pitch = TEXTURE_WIDTH * TEXTURE_BPP;
-	bitmap_pitch = n->screenshot_width * 3;
-	copy_pitch = (bitmap_pitch < texture_pitch)
-		? bitmap_pitch : texture_pitch;
-
-	for (y = n->screenshot_height; y--;) {
-		memcpy(dst, src, copy_pitch);
-		dst += texture_pitch;
-		src += bitmap_pitch;
-	}
+	retex(n, textures[1]);
 }
 
 static void draw_shit(struct gamecard *p, struct gamecard *n)
@@ -344,9 +325,6 @@ static void draw_shit(struct gamecard *p, struct gamecard *n)
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, textures[0]);
-
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT,
-			GL_RGB, GL_UNSIGNED_BYTE, texture_bitmaps[0]);
 
 		GLfloat shade = 1.0f - SHADE_FACTOR * current_frame;
 		if (shade < 0) {
@@ -378,9 +356,6 @@ static void draw_shit(struct gamecard *p, struct gamecard *n)
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, textures[1]);
-
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT,
-		GL_RGB, GL_UNSIGNED_BYTE, texture_bitmaps[1]);
 
 	quad_draw(&quads[1], &shader);
 

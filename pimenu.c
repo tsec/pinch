@@ -32,7 +32,8 @@
 #include "temp.h"
 
 #define PRELOAD_MARGIN 2
-#define SHADE_FACTOR   1.33f
+
+#define SHADE_FACTOR    1.33f
 #define ANIMATION_SPEED 0.01f
 
 #define JOY_DEADZONE 0x4000
@@ -45,6 +46,7 @@
 static int init_video();
 static void destroy_video();
 static void draw();
+static void go_to(int which);
 static void handle_event(SDL_Event *event);
 static void preload(int current);
 
@@ -258,25 +260,12 @@ static void draw()
 
 	phl_matrix_identity(&projection);
 	phl_matrix_ortho(&projection, -0.5f, 0.5f, -0.5f, +0.5f, -1.0f, 1.0f);
-	phl_matrix_scale(&projection, sprite->x_scale, sprite->y_scale, 0);
+	phl_matrix_scale(&projection, sprite->x_ratio, sprite->y_ratio, 0);
 
 	glUseProgram(shader.program);
 	glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, &projection.xx);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, sprite->texture);
-
-	GLfloat shade = 1.0f;
-/* FIXME
-	GLfloat shade = 1.0f - SHADE_FACTOR * current_frame;
-	if (shade < 0) {
-		shade = 0;
-	}
-*/
-	GLfloat colors[] = { shade, shade, shade, 1.0f };
-	quad_set_all_vertex_colors(&sprite->quad, colors);
-
-	quad_draw(&sprite->quad, &shader);
+	sprite_draw(sprite, &shader);
 
 	phl_gles_swap_buffers();
 }

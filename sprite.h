@@ -23,12 +23,14 @@ struct sprite {
 	struct quad_obj quad;
 	float frame_value;
 	float frame_delta;
-	float x_scale;
-	float y_scale;
+	float x_ratio;
+	float y_ratio;
 };
 
 int sprite_init(struct sprite *sprite);
 int sprite_set_texture(struct sprite *sprite, struct gamecard *gc);
+void sprite_set_shade(struct sprite *sprite, GLfloat shade);
+void sprite_draw(struct sprite *sprite, struct shader_obj *shader);
 void sprite_destroy(struct sprite *sprite);
 
 #endif // SPRITE_H

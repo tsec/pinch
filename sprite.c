@@ -52,6 +52,9 @@ int sprite_init(struct sprite *sprite)
 
 	quad_set_vertices(&sprite->quad, quad_vertices);
 
+	GLfloat colors[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	quad_set_all_vertex_colors(&sprite->quad, colors);
+
 	glBindTexture(GL_TEXTURE_2D, sprite->texture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEXTURE_WIDTH, TEXTURE_HEIGHT,
 		0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -94,8 +97,8 @@ int sprite_set_texture(struct sprite *sprite, struct gamecard *gc)
 
 	quad_resize(&sprite->quad, wr, hr);
 
-	sprite->x_scale = 1.0f;
-	sprite->y_scale = 1.0f;
+	sprite->x_ratio = 1.0f;
+	sprite->y_ratio = 1.0f;
 
 	float a = 1.0f;
 	if (phl_gles_screen_height > 0) {
@@ -107,12 +110,26 @@ int sprite_set_texture(struct sprite *sprite, struct gamecard *gc)
 	}
 
 	if (a > a0) {
-		sprite->x_scale = a0 / a;
+		sprite->x_ratio = a0 / a;
 	} else {
-		sprite->y_scale = a / a0;
+		sprite->y_ratio = a / a0;
 	}
 
 	free(row);
 	return 0;
+}
+
+void sprite_set_shade(struct sprite *sprite, GLfloat shade)
+{
+	GLfloat colors[] = { shade, shade, shade, 1.0f };
+	quad_set_all_vertex_colors(&sprite->quad, colors);
+}
+
+void sprite_draw(struct sprite *sprite, struct shader_obj *shader)
+{
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, sprite->texture);
+
+	quad_draw(&sprite->quad, shader);
 }
 

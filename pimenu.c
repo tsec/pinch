@@ -23,10 +23,11 @@
 #include "phl_gles.h"
 #include "phl_matrix.h"
 
+#include "common.h"
 #include "shader.h"
 #include "quad.h"
+#include "sprite.h"
 
-#include "common.h"
 #include "threads.h"
 #include "temp.h"
 
@@ -38,8 +39,6 @@
 #define TEXTURE_HEIGHT 512
 #define TEXTURE_BPP 3
 
-#define BUFFER_COUNT 6
-
 #define JOY_DEADZONE 0x4000
 
 static int init_video();
@@ -47,6 +46,7 @@ static void destroy_video();
 static void reset_bounds(struct gamecard *p, struct gamecard *n);
 static void draw_shit(struct gamecard *p, struct gamecard *n);
 static void handle_event(SDL_Event *event);
+static int retex(struct gamecard *gc, GLuint texture);
 
 static GLuint textures[TEXTURE_COUNT];
 
@@ -100,6 +100,9 @@ static const float frame_speed = 0.01f;
 static int current_anim = ANIM_NONE;
 static float current_frame = 0.0f;
 static float frame_incr;
+
+#define SPRITES 2
+struct sprite sprites[SPRITES];
 
 static void preload(int current)
 {
@@ -224,7 +227,19 @@ static int init_video()
 		return 1;
 	}
 
-	int i;
+	int i, j;
+	for (i = 0; i < SPRITES; i++) {
+		if (sprite_init(&sprites[i]) != 0) {
+			shader_destroy(&shader);
+			phl_gles_shutdown();
+			
+			for (j = 0; j < i; j++) {
+				sprite_destroy(&sprites[j]);
+			}
+			return 1;
+		}
+	}
+
 	for (i = 0; i < QUADS; i++) {
 		if (quad_init(&quads[i]) != 0) {
 			shader_destroy(&shader);
@@ -264,6 +279,10 @@ static void destroy_video()
 	shader_destroy(&shader);
 
 	int i;
+	for (i = 0; i < SPRITES; i++) {
+		sprite_destroy(&sprites[i]);
+	}
+
 	for (i = 0; i < QUADS; i++) {
 		quad_destroy(&quads[i]);
 	}
@@ -275,10 +294,14 @@ static void destroy_video()
 	fprintf(stderr, "OK\n");
 }
 
-static void retex(struct gamecard *gc, GLuint texture)
+static int retex(struct gamecard *gc, GLuint texture)
 {
 	int texture_pitch = TEXTURE_WIDTH * TEXTURE_BPP;
 	unsigned char *row = (unsigned char *)calloc(texture_pitch, 1);
+	if (row == NULL) {
+		return 1;
+	}
+
 	unsigned char *src = (unsigned char *)gc->screenshot_bitmap;
 
 	int bitmap_pitch = gc->screenshot_width * 3; // 3 == BPP
@@ -296,6 +319,7 @@ static void retex(struct gamecard *gc, GLuint texture)
 	}
 
 	free(row);
+	return 0;
 }
 
 static void reset_bounds(struct gamecard *p, struct gamecard *n)

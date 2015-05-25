@@ -51,6 +51,7 @@ static void draw_sprite(struct sprite *sprite);
 static void go_to(int which);
 static void handle_event(SDL_Event *event);
 static void preload(int current);
+static int launch(const struct gamecard *gc);
 
 static const char *vertex_shader_src =
 	"uniform mat4 u_vp_matrix;"
@@ -123,6 +124,8 @@ static struct anim_theme anim_themes[] = {
 const static struct anim_theme *anim_theme = &anim_themes[0];
 
 int pim_quit = 0;
+
+static const char *cmd_line_template = "cd ../fba-pi/; ./fbapi %s";
 
 static void go_to(int which)
 {
@@ -212,6 +215,8 @@ static void handle_event(SDL_Event *event)
 				go_to(GO_PREVIOUS);
 			} else if (keyEvent->keysym.sym == SDLK_RIGHT) {
 				go_to(GO_NEXT);
+			} else if (keyEvent->keysym.sym == SDLK_SPACE) {
+				launch(&gamecards[selected_card]);
 			} else if (keyEvent->keysym.sym == SDLK_ESCAPE) {
 				pim_quit = 1;
 			}
@@ -398,6 +403,34 @@ void bitmap_loaded_callback(struct gamecard *gc)
 		event.user.data1 = gc;
 		SDL_PushEvent(&event);
 	}
+}
+
+static int launch(const struct gamecard *gc)
+{
+	int success = 0;
+
+	fprintf(stderr, "Launching %s...\n", gc->archive);
+
+	int len = snprintf(NULL, 0, cmd_line_template, gc->archive);
+	char *cmd_line = calloc(len + 1, sizeof(char));
+	if (cmd_line != NULL) {
+		snprintf(cmd_line, len + 1, cmd_line_template, gc->archive);
+		
+		FILE *out = fopen("launch.sh", "w");
+		if (out != NULL) {
+			fprintf(out, "%s\n", cmd_line);
+			fclose(out);
+			pim_quit = 1;
+		} else {
+			perror("Error writing to launch script\n");
+		}
+		free(cmd_line);
+	} else {
+		perror("Error allocating space for executable path\n");
+		success = 1;
+	}
+
+	return success;
 }
 
 int main(int argc, char *argv[])

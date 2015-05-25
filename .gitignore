@@ -4,3 +4,4 @@ pim
 images
 *.o
 out.stderr
+launch.sh

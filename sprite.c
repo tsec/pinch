@@ -132,4 +132,3 @@ void sprite_draw(struct sprite *sprite, struct shader_obj *shader)
 
 	quad_draw(&sprite->quad, shader);
 }
-

@@ -33,8 +33,9 @@
 
 #define PRELOAD_MARGIN 2
 
-#define SHADE_FACTOR    1.33f
-#define ANIMATION_SPEED 0.01f
+#define SHADE_FACTOR 1.33f
+#define ANIM_SPEED   0.15f
+#define FLIP_SCALE   0.9f
 
 #define JOY_DEADZONE 0x4000
 
@@ -46,6 +47,7 @@
 static int init_video();
 static void destroy_video();
 static void draw();
+static void draw_sprite(struct sprite *sprite);
 static void go_to(int which);
 static void handle_event(SDL_Event *event);
 static void preload(int current);
@@ -76,44 +78,92 @@ static int card_count;
 static int previous_card = 0;
 static int selected_card = 0;
 
+#define STATE_INVISIBLE   0x0000
+#define STATE_VISIBLE     0x0001
+
+#define STATE_ENTER_LEFT  0x0011
+#define STATE_ENTER_RIGHT 0x0021
+#define STATE_FLIP_IN     0x0031
+#define STATE_FADE_IN     0x0043
+
+#define STATE_EXIT_LEFT  0x0010
+#define STATE_EXIT_RIGHT 0x0020
+#define STATE_FLIP_OUT   0x0030
+#define STATE_FADE_OUT   0x0040
+
+#define IS_EXIT_STATE(x) (!((x)&0x1))
+#define IS_DRAWN_FIRST(x) ((x)&0x2)
+
 #define SPRITES 2
-struct sprite sprites[SPRITES];
+static struct sprite sprites[SPRITES];
 static struct shader_obj shader;
+
+struct anim_theme {
+	int exit_previous;
+	int enter_previous;
+	int exit_next;
+	int enter_next;
+};
+
+static struct anim_theme anim_themes[] = {
+	{
+		STATE_FLIP_OUT,
+		STATE_FADE_IN,
+		STATE_FADE_OUT,
+		STATE_FLIP_IN,
+	},
+	{
+		STATE_EXIT_LEFT,
+		STATE_ENTER_LEFT,
+		STATE_EXIT_RIGHT,
+		STATE_ENTER_RIGHT,
+	},
+};
+
+const static struct anim_theme *anim_theme = &anim_themes[0];
 
 int pim_quit = 0;
 
 static void go_to(int which)
 {
 	if (which == GO_PREVIOUS) {
-		// Left
+		sprites[0].id = gamecards[selected_card].id;
+		sprite_set_texture(&sprites[0], &gamecards[selected_card]);
+		sprites[0].frame_value = 0.0f;
+		sprites[0].frame_delta = ANIM_SPEED;
+		sprites[0].state = anim_theme->exit_previous;
+
 		previous_card = selected_card;
 		if (--selected_card < 0) {
 			selected_card = card_count - 1;
 		}
 
-		sprites[0].id = gamecards[selected_card].id;
-		sprite_set_texture(&sprites[0], &gamecards[selected_card]);
+		sprites[1].id = gamecards[selected_card].id;
+		sprite_set_texture(&sprites[1], &gamecards[selected_card]);
+		sprites[1].frame_value = 0.0f;
+		sprites[1].frame_delta = ANIM_SPEED;
+		sprites[1].state = anim_theme->enter_previous;
 
 		preload(selected_card);
-/* FIXME
-		reset_bounds(&gamecards[previous_card],
-			&gamecards[selected_card]);
-*/
 	} else if (which == GO_NEXT) {
-		// Right
+		sprites[0].id = gamecards[selected_card].id;
+		sprite_set_texture(&sprites[0], &gamecards[selected_card]);
+		sprites[0].frame_value = 0.0f;
+		sprites[0].frame_delta = ANIM_SPEED;
+		sprites[0].state = anim_theme->exit_next;
+
 		previous_card = selected_card;
 		if (++selected_card >= card_count) {
 			selected_card = 0;
 		}
 
-		sprites[0].id = gamecards[selected_card].id;
-		sprite_set_texture(&sprites[0], &gamecards[selected_card]);
+		sprites[1].id = gamecards[selected_card].id;
+		sprite_set_texture(&sprites[1], &gamecards[selected_card]);
+		sprites[1].frame_value = 0.0f;
+		sprites[1].frame_delta = ANIM_SPEED;
+		sprites[1].state = anim_theme->enter_next;
 
 		preload(selected_card);
-/* FIXME
-		reset_bounds(&gamecards[previous_card],
-			&gamecards[selected_card]);
-*/
 	}
 }
 
@@ -252,20 +302,86 @@ static void destroy_video()
 	fprintf(stderr, "OK\n");
 }
 
-static void draw()
+static void draw_sprite(struct sprite *sprite)
 {
-	struct sprite *sprite = &sprites[0];
-	
-	static struct phl_matrix projection;
+	if (sprite->state == STATE_INVISIBLE) {
+		return;
+	}
+
+	struct phl_matrix projection;
 
 	phl_matrix_identity(&projection);
 	phl_matrix_ortho(&projection, -0.5f, 0.5f, -0.5f, +0.5f, -1.0f, 1.0f);
 	phl_matrix_scale(&projection, sprite->x_ratio, sprite->y_ratio, 0);
 
+	float frame = sprite->frame_value;
+	if (sprite->state == STATE_ENTER_RIGHT) {
+		phl_matrix_translate(&projection, -(1.0f - frame) * 2.0f, 0, 0);
+	} else if (sprite->state == STATE_ENTER_LEFT) {
+		phl_matrix_translate(&projection, (1.0f - frame) * 2.0f, 0, 0);
+	} else if (sprite->state == STATE_FLIP_IN) {
+		float scale = FLIP_SCALE - (frame * FLIP_SCALE);
+		phl_matrix_scale(&projection, 1.0f + scale, 1.0f + scale, 0);
+		phl_matrix_translate(&projection, -(1.0f - frame) * (2.0f + FLIP_SCALE), 0, 0);
+	} else if (sprite->state == STATE_FLIP_OUT) {
+		float scale = frame * FLIP_SCALE;
+		phl_matrix_scale(&projection, 1.0f + scale, 1.0f + scale, 0);
+		phl_matrix_translate(&projection, -frame * (2.0f + FLIP_SCALE), 0, 0);
+	} else if (sprite->state == STATE_EXIT_RIGHT) {
+		phl_matrix_translate(&projection, frame * 2.0f, 0, 0);
+	} else if (sprite->state == STATE_EXIT_LEFT) {
+		phl_matrix_translate(&projection, -frame * 2.0f, 0, 0);
+	} else if (sprite->state == STATE_FADE_IN) {
+		GLfloat shade = SHADE_FACTOR * frame;
+		if (shade > 1.0f) {
+			shade = 1.0f;
+		}
+		sprite_set_shade(sprite, shade);
+	} else if (sprite->state == STATE_FADE_OUT) {
+		GLfloat shade = 1.0f - SHADE_FACTOR * frame;
+		if (shade < 0.0f) {
+			shade = 0.0f;
+		}
+		sprite_set_shade(sprite, shade);
+	}
+
 	glUseProgram(shader.program);
 	glUniformMatrix4fv(shader.u_vp_matrix, 1, GL_FALSE, &projection.xx);
 
 	sprite_draw(sprite, &shader);
+
+	if (sprite->state != STATE_VISIBLE && sprite->state != STATE_INVISIBLE) {
+		float next_frame = frame + sprite->frame_delta;
+		int end_state = 0;
+		if (next_frame > 1.0f) {
+			next_frame = 1.0f;
+			end_state = 1;
+		} else if (next_frame < 0.0f) {
+			next_frame = 0.0f;
+			end_state = 1;
+		}
+		sprite->frame_value = next_frame;
+
+		if (end_state) {
+			if (IS_EXIT_STATE(sprite->state)) {
+				sprite->state = STATE_INVISIBLE;
+				sprite_set_shade(sprite, 1.0f);
+			} else {
+				sprite->state = STATE_VISIBLE;
+			}
+		}
+	}
+}
+
+static void draw()
+{
+	if (IS_DRAWN_FIRST(sprites[1].state)) {
+		draw_sprite(&sprites[1]);
+		draw_sprite(&sprites[0]);
+	} else {
+		draw_sprite(&sprites[0]);
+		draw_sprite(&sprites[1]);
+	}
 
 	phl_gles_swap_buffers();
 }
@@ -329,6 +445,7 @@ int main(int argc, char *argv[])
 	// FIXME
 	sprites[0].id = 0;
 	sprites[1].id = 1;
+	sprites[0].state = STATE_VISIBLE;
 
 	preload(selected_card);
 

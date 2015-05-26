@@ -1,8 +1,15 @@
-Pim
+Pinch
 Copyright 2015 Akop Karapetyan
 
-Pim is written by Akop Karapetyan.
+Pinch is written by Akop Karapetyan.
 
 Portions of this software are of uncertain origin and to the best of my
 knowledge, are in the public domain. Where available, source hyperlinks
 have been provided.
+
+Pinch uses cJSON, Copyright (c) 2009 Dave Gamble
+See cjson/LICENSE for license information
+
+Pinch uses threadqueue.c of uncertain authorship, from the following
+stackoverflow post:
+http://stackoverflow.com/questions/4577961/pthread-synchronized-blocking-queue

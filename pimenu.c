@@ -27,6 +27,7 @@
 #include "shader.h"
 #include "quad.h"
 #include "sprite.h"
+#include "config.h"
 
 #include "threads.h"
 #include "temp.h"
@@ -98,6 +99,8 @@ static int selected_card = 0;
 #define SPRITES 2
 static struct sprite sprites[SPRITES];
 static struct shader_obj shader;
+
+static struct config config;
 
 struct anim_theme {
 	int exit_previous;
@@ -207,7 +210,7 @@ static void handle_event(SDL_Event *event)
 			break;
 		}
 		break;
-	case SDL_KEYUP:
+	case SDL_KEYDOWN:
 		{
 			// FIXME
 			SDL_KeyboardEvent *keyEvent = (SDL_KeyboardEvent *)event;
@@ -475,9 +478,19 @@ int main(int argc, char *argv[])
 		SDL_JoystickOpen(0);
 	}
 
-	// FIXME
-	sprites[0].id = 0;
-	sprites[1].id = 1;
+	config_load(&config, "config.json");
+
+	selected_card = 0;
+	if (config.last_selected) {
+		for (i = 0; i < card_count; i++) {
+			if (strcmp(gamecards[i].archive, config.last_selected) == 0) {
+				selected_card = i;
+				break;
+			}
+		}
+	}
+
+	sprites[0].id = selected_card;
 	sprites[0].state = STATE_VISIBLE;
 
 	preload(selected_card);
@@ -500,10 +513,17 @@ int main(int argc, char *argv[])
 	destroy_video();
 	SDL_Quit();
 
+	if (selected_card > 0) {
+		config_set_last_selected(&config, gamecards[selected_card].archive);
+	}
+
 	for (i = 0, gc = gamecards; i < card_count; i++, gc++) {
 		gamecard_free(gc);
 	}
 	free(gamecards);
+
+	config_save(&config, "config.json");
+	config_destroy(&config);
 
 	return 0;
 }

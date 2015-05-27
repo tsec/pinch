@@ -11,7 +11,7 @@ OpenGL ES <sup>[[citation needed]](http://xkcd.com/285/)</sup>.
 
 Its intended targets are arcade cabinets running Raspberry Pi.
 
-It not yet complete.
+It's not yet complete.
 
 Compiling
 ---------

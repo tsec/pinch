@@ -41,5 +41,6 @@ void gamecard_set_bitmap(struct gamecard *gc,
 void gamecard_dump(const struct gamecard *gc);
 
 void* load_bitmap(const char *path, int *width, int *height, int *size);
+char* glob_file(const char *path);
 
 #endif // PIM_COMMON_H

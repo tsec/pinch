@@ -5,4 +5,4 @@ images
 *.o
 out.stderr
 launch.sh
-config.json
+*.json

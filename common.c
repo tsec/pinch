@@ -20,7 +20,6 @@
 #include <png.h>
 
 #include "common.h"
-#include "phl_gles.h"
 
 void gamecard_dump(const struct gamecard *gc)
 {
@@ -171,4 +170,31 @@ void* load_bitmap(const char *path, int *width, int *height, int *size)
 	fclose(fp);
 
 	return bitmap;
+}
+
+char* glob_file(const char *path)
+{
+	char *contents = NULL;
+	
+	FILE *file = fopen(path,"r");
+	if (file) {
+		// Determine size
+		fseek(file, 0L, SEEK_END);
+		long size = ftell(file);
+		rewind(file);
+	
+		// Allocate memory
+		contents = (char *)calloc(size + 1, 1);
+		if (contents) {
+			// Read contents
+			if (fread(contents, size, 1, file) != 1) {
+				free(contents);
+				contents = NULL;
+			}
+		}
+
+		fclose(file);
+	}
+	
+	return contents;
 }

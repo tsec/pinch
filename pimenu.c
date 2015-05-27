@@ -20,6 +20,7 @@
 #include <SDL/SDL.h>
 #include <math.h>
 
+#include "cjson/cJSON.h"
 #include "phl_gles.h"
 #include "phl_matrix.h"
 
@@ -27,10 +28,13 @@
 #include "shader.h"
 #include "quad.h"
 #include "sprite.h"
-#include "config.h"
+#include "state.h"
 
 #include "threads.h"
-#include "temp.h"
+
+#define STATE_FILE "state.json"
+#define CONFIG_FILE "config.json"
+#define SCREENSHOT_TEMPLATE "images/%s.png"
 
 #define PRELOAD_MARGIN 2
 
@@ -100,7 +104,7 @@ static int selected_card = 0;
 static struct sprite sprites[SPRITES];
 static struct shader_obj shader;
 
-static struct config config;
+static struct state state;
 
 struct anim_theme {
 	int exit_previous;
@@ -227,7 +231,8 @@ static void handle_event(SDL_Event *event)
 		break;
 	case SDL_JOYBUTTONDOWN:
 		fprintf(stderr, "joydown\n");
-		pim_quit = 1;
+		pim_quit = 
+		1;
 		break;
 	case SDL_JOYBUTTONUP:
 		fprintf(stderr, "joyup\n");
@@ -436,6 +441,48 @@ static int launch(const struct gamecard *gc)
 	return success;
 }
 
+int config_load(const char *path)
+{
+	int ret_val = 1;
+	char *contents = glob_file(path);
+	if (contents) {
+		cJSON *root = cJSON_Parse(contents);
+		if (root) {
+			cJSON *sets_node = cJSON_GetObjectItem(root, "sets");
+			if (sets_node != NULL) {
+				card_count = cJSON_GetArraySize(sets_node);
+				if (card_count > 0) {
+					gamecards = (struct gamecard *)calloc(card_count, sizeof(struct gamecard));
+					if (gamecards != NULL) {
+						int i;
+						struct gamecard *gc;
+						for (i = 0, gc = gamecards; i < card_count; i++, gc++) {
+							cJSON *item = cJSON_GetArrayItem(sets_node, i);
+							if (item != NULL) {
+								gamecard_init(gc);
+
+								cJSON *archive_node = cJSON_GetObjectItem(item, "archive");
+								if (archive_node) {
+									gc->archive = strdup(archive_node->valuestring);
+									gc->id = i;
+
+									int length = snprintf(NULL, 0, SCREENSHOT_TEMPLATE, gc->archive);
+									gc->screenshot_path = (char *)malloc(sizeof(char) * (length + 1));
+									sprintf(gc->screenshot_path, SCREENSHOT_TEMPLATE, gc->archive);
+								}
+							}
+						}
+					}
+				}
+			}
+			cJSON_Delete(root);
+		}
+		free(contents);
+	}
+
+	return ret_val;
+}
+
 int main(int argc, char *argv[])
 {
 	if (init_threads() != 0) {
@@ -443,20 +490,14 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	const char **romname;
-	for (romname = romnames, card_count = 0; *romname; romname++, card_count++);
+	if (!config_load(CONFIG_FILE)) {
+		fprintf(stderr, "Error reading config file\n");
+		return 1;
+	}
 
-	gamecards = (struct gamecard *)calloc(card_count, sizeof(struct gamecard));
-	struct gamecard *gc;
-	int i = 0;
-	for (romname = romnames, gc = gamecards; *romname; romname++, gc++, i++) {
-		gamecard_init(gc);
-		gc->archive = strdup(*romname);
-		gc->id = i;
-
-		int length = snprintf(NULL, 0, "images/%s.png", *romname);
-		gc->screenshot_path = (char *)malloc(sizeof(char) * (length + 1));
-		sprintf(gc->screenshot_path, "images/%s.png", *romname);
+	if (card_count < 1) {
+		fprintf(stderr, "No sets found in config file\n");
+		return 1;
 	}
 
 	if (SDL_Init(SDL_INIT_JOYSTICK|SDL_INIT_EVENTTHREAD|SDL_INIT_VIDEO) != 0) {
@@ -478,12 +519,13 @@ int main(int argc, char *argv[])
 		SDL_JoystickOpen(0);
 	}
 
-	config_load(&config, "config.json");
+	state_load(&state, STATE_FILE);
 
+	int i;
 	selected_card = 0;
-	if (config.last_selected) {
+	if (state.last_selected) {
 		for (i = 0; i < card_count; i++) {
-			if (strcmp(gamecards[i].archive, config.last_selected) == 0) {
+			if (strcmp(gamecards[i].archive, state.last_selected) == 0) {
 				selected_card = i;
 				break;
 			}
@@ -514,16 +556,17 @@ int main(int argc, char *argv[])
 	SDL_Quit();
 
 	if (selected_card > 0) {
-		config_set_last_selected(&config, gamecards[selected_card].archive);
+		state_set_last_selected(&state, gamecards[selected_card].archive);
 	}
 
+	struct gamecard *gc;
 	for (i = 0, gc = gamecards; i < card_count; i++, gc++) {
 		gamecard_free(gc);
 	}
 	free(gamecards);
 
-	config_save(&config, "config.json");
-	config_destroy(&config);
+	state_save(&state, STATE_FILE);
+	state_destroy(&state);
 
 	return 0;
 }

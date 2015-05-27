@@ -14,16 +14,16 @@
 ** limitations under the License.
 **/
 
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef STATE_H
+#define STATE_H
 
-struct config {
+struct state {
 	char *last_selected;
 };
 
-int config_load(struct config *config, const char *path);
-int config_save(struct config *config, const char *path);
-void config_set_last_selected(struct config *config, const char *value);
-void config_destroy();
+int state_load(struct state *state, const char *path);
+int state_save(struct state *state, const char *path);
+void state_set_last_selected(struct state *state, const char *value);
+void state_destroy();
 
-#endif // CONFIG_H
+#endif // STATE_H

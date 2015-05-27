@@ -9,8 +9,8 @@ LDFLAGS=-lSDL -lbcm_host -lEGL -lGLESv2 -lpthread -lm -lpng \
 	-L/opt/vc/lib
 OBJS=cjson/cJSON.o threadqueue.o \
 	phl_matrix.o phl_gles.o \
-	state.o shader.o quad.o \
-	common.o sprite.o threads.o pimenu.o
+	gamecard.o common.o state.o shader.o quad.o \
+	sprite.o threads.o pimenu.o
 EXE=pim
 
 %.o: %.c

@@ -21,37 +21,6 @@
 
 #include "common.h"
 
-void gamecard_dump(const struct gamecard *gc)
-{
-	fprintf(stderr, "[%s,%s,%s,%dx%d]\n", gc->archive, gc->screenshot_path,
-		gc->screenshot_bitmap ? "(bitmap)" : "",
-		gc->screenshot_width, gc->screenshot_height);
-}
-
-void gamecard_init(struct gamecard *gc)
-{
-	gc->lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-}
-
-void gamecard_free(struct gamecard *gc)
-{
-	pthread_mutex_destroy(&gc->lock);
-	free(gc->archive); gc->archive = NULL;
-	free(gc->screenshot_path); gc->screenshot_path = NULL;
-	free(gc->screenshot_bitmap); gc->screenshot_bitmap = NULL;
-}
-
-void gamecard_set_bitmap(struct gamecard *gc,
-	int width, int height, void *bmp)
-{
-	free(gc->screenshot_bitmap);
-
-	gc->screenshot_width = width;
-	gc->screenshot_height = height;
-	gc->screenshot_bitmap = bmp;
-	gc->status = STATUS_LOADED;
-}
-
 // http://stackoverflow.com/questions/11296644/loading-png-textures-to-opengl-with-libpng-only
 void* load_bitmap(const char *path, int *width, int *height, int *size)
 {

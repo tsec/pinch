@@ -21,7 +21,7 @@
 #include "phl_gles.h"
 #include "shader.h"
 #include "quad.h"
-#include "common.h"
+#include "gamecard.h"
 
 #include "sprite.h"
 

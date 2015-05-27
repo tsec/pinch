@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <stdio.h>
 
+#include "gamecard.h"
 #include "threadqueue.h"
 #include "threads.h"
 

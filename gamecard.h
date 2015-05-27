@@ -14,12 +14,28 @@
 ** limitations under the License.
 **/
 
-#ifndef PIM_COMMON_H
-#define PIM_COMMON_H
+#ifndef GAMECARD_H
+#define GAMECARD_H
 
-extern int pim_quit;
+#define STATUS_LOADING 1
+#define STATUS_LOADED  2
+#define STATUS_ERROR   3
 
-void* load_bitmap(const char *path, int *width, int *height, int *size);
-char* glob_file(const char *path);
+struct gamecard {
+	int id;
+	char *archive;
+	char *screenshot_path;
+	void *screenshot_bitmap;
+	int screenshot_width;
+	int screenshot_height;
+	int status;
+	pthread_mutex_t lock;
+};
 
-#endif // PIM_COMMON_H
+void gamecard_init(struct gamecard *gc);
+void gamecard_free(struct gamecard *gc);
+void gamecard_set_bitmap(struct gamecard *gc,
+	int width, int height, void *bmp);
+void gamecard_dump(const struct gamecard *gc);
+
+#endif // GAMECARD_H

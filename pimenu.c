@@ -25,6 +25,7 @@
 #include "phl_matrix.h"
 
 #include "common.h"
+#include "gamecard.h"
 #include "shader.h"
 #include "quad.h"
 #include "sprite.h"
@@ -223,18 +224,21 @@ static void handle_event(SDL_Event *event)
 			} else if (keyEvent->keysym.sym == SDLK_RIGHT) {
 				go_to(GO_NEXT);
 			} else if (keyEvent->keysym.sym == SDLK_SPACE) {
-				launch(&gamecards[selected_card]);
+				if (selected_card > 0) {
+					launch(&gamecards[selected_card]);
+				}
 			} else if (keyEvent->keysym.sym == SDLK_ESCAPE) {
 				pim_quit = 1;
 			}
 		}
 		break;
 	case SDL_JOYBUTTONDOWN:
+		// FIXME
 		fprintf(stderr, "joydown\n");
-		pim_quit = 
-		1;
+		pim_quit = 1;
 		break;
 	case SDL_JOYBUTTONUP:
+		// FIXME
 		fprintf(stderr, "joyup\n");
 		break;
 	case SDL_JOYAXISMOTION: 

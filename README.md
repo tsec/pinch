@@ -2,10 +2,12 @@ Pinch
 -----
 
 Pinch is an arcade emulator launcher, but it can probably be made
-to launch whatever else.
+to launch whatever
+else<sup>[[citation needed]](http://xkcd.com/285/)</sup>.
 
 It's written for the Raspberry Pi, although it should be portable
-to any other Linux-based system that supports OpenGL ES.
+to any other Linux-based system that supports
+OpenGL ES <sup>[[citation needed]](http://xkcd.com/285/)</sup>.
 
 Its intended targets are arcade cabinets running Raspberry Pi.
 

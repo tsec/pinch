@@ -1,16 +1,24 @@
 Pinch
 -----
 
-Pinch is a launcher intended for launching emulated arcade titles,
-but it can probably be made to launch whatever else.
+Pinch is an arcade emulator launcher, but it can probably be made
+to launch whatever else.
 
-It's written for the Raspberry Pi, but it can probably
-be migrated to any other Linux-based system that supports OpenGL ES.
+It's written for the Raspberry Pi, although it should be portable
+to any other Linux-based system that supports OpenGL ES.
 
-The launcher is meant to be minimalistic and not player-configurable.
 Its intended targets are arcade cabinets running Raspberry Pi.
 
-It is as yet **incomplete**.
+It not yet complete.
+
+Compiling
+---------
+
+To compile on a Raspberry Pi, install SDL:
+
+`sudo apt-get install libsdl-dev`
+
+Run `make` to build.
 
 License
 -------

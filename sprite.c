@@ -38,6 +38,8 @@ static const GLfloat quad_vertices[] = {
 
 int sprite_init(struct sprite *sprite)
 {
+	memset(sprite, 0, sizeof(struct sprite));
+
 	glGenTextures(1, &sprite->texture);
 	if (glGetError() != GL_NO_ERROR) {
 		fprintf(stderr, "glGenTextures() failed\n");
@@ -47,6 +49,14 @@ int sprite_init(struct sprite *sprite)
 	if (quad_init(&sprite->quad) != 0) {
 		fprintf(stderr, "quad_init() failed\n");
 		glDeleteTextures(1, &sprite->texture);
+		return 1;
+	}
+
+	sprite->texture_pitch = TEXTURE_WIDTH * TEXTURE_BPP;
+	if ((sprite->row = malloc(sprite->texture_pitch)) == NULL) {
+		fprintf(stderr, "sprite row malloc failed\n");
+		glDeleteTextures(1, &sprite->texture);
+		quad_destroy(&sprite->quad);
 		return 1;
 	}
 
@@ -66,30 +76,26 @@ void sprite_destroy(struct sprite *sprite)
 {
 	glDeleteTextures(1, &sprite->texture);
 	quad_destroy(&sprite->quad);
+	free(sprite->row); sprite->row = NULL;
 }
 
 int sprite_set_texture(struct sprite *sprite, struct gamecard *gc)
 {
-	int texture_pitch = TEXTURE_WIDTH * TEXTURE_BPP;
-	unsigned char *row = (unsigned char *)calloc(texture_pitch, 1);
-	if (row == NULL) {
-		return 1;
-	}
-
+	memset(sprite->row, 0, sprite->texture_pitch);
 	unsigned char *src = (unsigned char *)gc->screenshot_bitmap;
 
 	int bitmap_pitch = gc->screenshot_width * 3; // 3 == BPP
-	int copy_pitch = (bitmap_pitch < texture_pitch)
-		? bitmap_pitch : texture_pitch;
+	int copy_pitch = (bitmap_pitch < sprite->texture_pitch)
+		? bitmap_pitch : sprite->texture_pitch;
 
 	glBindTexture(GL_TEXTURE_2D, sprite->texture);
 
 	int i, h;
 	for (i = 0, h = gc->screenshot_height; i < h; i++) {
-		memcpy(row, src, copy_pitch);
+		memcpy(sprite->row, src, copy_pitch);
 		src += bitmap_pitch;
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, TEXTURE_WIDTH, 1,
-			GL_RGB, GL_UNSIGNED_BYTE, row);
+			GL_RGB, GL_UNSIGNED_BYTE, sprite->row);
 	}
 
 	float wr = (float)gc->screenshot_width / TEXTURE_WIDTH;
@@ -115,7 +121,32 @@ int sprite_set_texture(struct sprite *sprite, struct gamecard *gc)
 		sprite->y_ratio = a / a0;
 	}
 
-	free(row);
+	return 0;
+}
+
+int sprite_set_frame(struct sprite *sprite, struct gamecard *gc)
+{
+	if (gc->frame > gc->frame_count) {
+		return 1;
+	}
+
+	memset(sprite->row, 0, sprite->texture_pitch);
+	unsigned char *src = (unsigned char *)gc->frames[gc->frame];
+
+	int bitmap_pitch = gc->screenshot_width * 3; // 3 == BPP
+	int copy_pitch = (bitmap_pitch < sprite->texture_pitch)
+		? bitmap_pitch : sprite->texture_pitch;
+
+	glBindTexture(GL_TEXTURE_2D, sprite->texture);
+
+	int i, h;
+	for (i = 0, h = gc->screenshot_height; i < h; i++) {
+		memcpy(sprite->row, src, copy_pitch);
+		src += bitmap_pitch;
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, TEXTURE_WIDTH, 1,
+			GL_RGB, GL_UNSIGNED_BYTE, sprite->row);
+	}
+
 	return 0;
 }
 

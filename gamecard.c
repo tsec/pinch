@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 
 #include "gamecard.h"
@@ -29,24 +30,24 @@ void gamecard_dump(const struct gamecard *gc)
 
 void gamecard_init(struct gamecard *gc)
 {
-	gc->lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+	memset(gc, 0, sizeof(gc));
+
+	gc->title_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+	gc->frame_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 }
 
 void gamecard_free(struct gamecard *gc)
 {
-	pthread_mutex_destroy(&gc->lock);
 	free(gc->archive); gc->archive = NULL;
 	free(gc->screenshot_path); gc->screenshot_path = NULL;
 	free(gc->screenshot_bitmap); gc->screenshot_bitmap = NULL;
-}
 
-void gamecard_set_bitmap(struct gamecard *gc,
-	int width, int height, void *bmp)
-{
-	free(gc->screenshot_bitmap);
+	int i;
+	for (i = 0; i < gc->frame_count; i++) {
+		free(gc->frames[i]);
+	}
+	free(gc->frames); gc->frames = NULL;
 
-	gc->screenshot_width = width;
-	gc->screenshot_height = height;
-	gc->screenshot_bitmap = bmp;
-	gc->status = STATUS_LOADED;
+	pthread_mutex_destroy(&gc->title_lock);
+	pthread_mutex_destroy(&gc->frame_lock);
 }

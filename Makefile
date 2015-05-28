@@ -11,7 +11,7 @@ OBJS=cjson/cJSON.o threadqueue.o \
 	phl_matrix.o phl_gles.o \
 	gamecard.o common.o state.o shader.o quad.o \
 	sprite.o threads.o pimenu.o
-EXE=pim
+EXE=pinch
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS) $(INCLUDES)

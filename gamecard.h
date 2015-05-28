@@ -28,14 +28,17 @@ struct gamecard {
 	void *screenshot_bitmap;
 	int screenshot_width;
 	int screenshot_height;
-	int status;
-	pthread_mutex_t lock;
+	int title_status;
+	int frame_status;
+	pthread_mutex_t title_lock;
+	pthread_mutex_t frame_lock;
+	void **frames;
+	int frame_count;
+	int frame;
 };
 
 void gamecard_init(struct gamecard *gc);
 void gamecard_free(struct gamecard *gc);
-void gamecard_set_bitmap(struct gamecard *gc,
-	int width, int height, void *bmp);
 void gamecard_dump(const struct gamecard *gc);
 
 #endif // GAMECARD_H

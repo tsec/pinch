@@ -26,9 +26,12 @@ struct sprite {
 	int state;
 	float x_ratio;
 	float y_ratio;
+	unsigned int texture_pitch;
+	void *row; // scratch area
 };
 
 int sprite_init(struct sprite *sprite);
+int sprite_set_frame(struct sprite *sprite, struct gamecard *gc);
 int sprite_set_texture(struct sprite *sprite, struct gamecard *gc);
 void sprite_set_shade(struct sprite *sprite, GLfloat shade);
 void sprite_draw(struct sprite *sprite, struct shader_obj *shader);

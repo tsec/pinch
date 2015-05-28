@@ -190,7 +190,7 @@ static void preload(int current)
 		}
 
 		struct gamecard *gc = &gamecards[card_index];
-		if (gc->status == 0) {
+		if (gc->title_status == 0) {
 			// A race condition is possible, but the bitmap loader will check
 			// again in thread-safe fashion
 			add_to_queue(&gamecards[card_index]);
@@ -284,6 +284,7 @@ static int init_video()
 			for (j = 0; j < i; j++) {
 				sprite_destroy(&sprites[j]);
 			}
+			fprintf(stderr, "Sprite init failed\n");
 			return 1;
 		}
 	}
@@ -542,6 +543,7 @@ int main(int argc, char *argv[])
 	preload(selected_card);
 
 	SDL_Event event;
+	int frame = 0;
 	while (!pim_quit) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT ) {
@@ -549,6 +551,21 @@ int main(int argc, char *argv[])
 				break;
 			} else {
 				handle_event(&event);
+			}
+		}
+		
+		if (++frame > 1) {
+			frame = 0;
+			for (i = 0; i < SPRITES; i++) {
+				struct sprite *sprite = &sprites[i];
+				struct gamecard *gc = &gamecards[sprite->id];
+
+				if (gc->frame_count > 0) {
+					if (++gc->frame >= gc->frame_count) {
+						gc->frame = 0;
+					}
+					sprite_set_frame(sprite, gc);
+				}
 			}
 		}
 

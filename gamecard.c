@@ -32,8 +32,7 @@ void gamecard_init(struct gamecard *gc)
 {
 	memset(gc, 0, sizeof(gc));
 
-	gc->title_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-	gc->frame_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+	gc->load_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 }
 
 void gamecard_free(struct gamecard *gc)
@@ -48,6 +47,5 @@ void gamecard_free(struct gamecard *gc)
 	}
 	free(gc->frames); gc->frames = NULL;
 
-	pthread_mutex_destroy(&gc->title_lock);
-	pthread_mutex_destroy(&gc->frame_lock);
+	pthread_mutex_destroy(&gc->load_lock);
 }

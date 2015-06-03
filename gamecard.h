@@ -28,10 +28,8 @@ struct gamecard {
 	void *screenshot_bitmap;
 	int screenshot_width;
 	int screenshot_height;
-	int title_status;
-	int frame_status;
-	pthread_mutex_t title_lock;
-	pthread_mutex_t frame_lock;
+	int load_status;
+	pthread_mutex_t load_lock;
 	void **frames;
 	int frame_count;
 	int frame;

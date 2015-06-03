@@ -190,7 +190,7 @@ static void preload(int current)
 		}
 
 		struct gamecard *gc = &gamecards[card_index];
-		if (gc->title_status == 0) {
+		if (gc->load_status == 0) {
 			// A race condition is possible, but the bitmap loader will check
 			// again in thread-safe fashion
 			add_to_queue(&gamecards[card_index]);

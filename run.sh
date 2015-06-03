@@ -19,7 +19,7 @@ LAUNCH=launch.sh
 
 while true; do
 	rm -f $LAUNCH
-	./pim
+	./pinch
 	if [ -e $LAUNCH ]; then
 		sh $LAUNCH
 	else

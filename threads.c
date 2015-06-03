@@ -18,11 +18,19 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
 
 #include "gamecard.h"
 #include "threadqueue.h"
 #include "threads.h"
+
+#define PATH_MAX   512
+// at 30 fps, I figure 5 seconds of animation is enough. for now.
+#define FRAMES_MAX 150
+
+#define TITLE_FMT "images/%s.png"
+#define FRAME_FMT "mov/%s-%04d.png"
 
 static int buffer_memory_alloced = 0;
 static pthread_mutex_t memory_counter_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
@@ -34,8 +42,7 @@ static struct threadqueue loader_queue;
 static pthread_t load_waiter_thread;
 
 static void* load_waiter_func(void *arg);
-static void* title_loader_func(void *arg);
-static void* anim_loader_func(void *arg);
+static void* loader_func(void *arg);
 static void threads_running_incr(int delta);
 static void buffer_memory_incr(int delta);
 
@@ -93,23 +100,12 @@ static void* load_waiter_func(void *arg)
 		}
 
 		struct gamecard *gc = (struct gamecard *)message.data;
-		pthread_t loader_thread;
-		if (pthread_create(&loader_thread, NULL, title_loader_func, gc) != 0) {
-			perror("thread_create(title_loader_func) returned an error\n");
+		pthread_t anim_thread;
+		if (pthread_create(&anim_thread, NULL, loader_func, gc) != 0) {
+			perror("thread_create(loader_func) returned an error\n");
 			pim_quit = 1;
 			break;
 		}
-
-///
-		if (strcmp(gc->archive, "mvsc") == 0) {
-			pthread_t anim_thread;
-			if (pthread_create(&anim_thread, NULL, anim_loader_func, gc) != 0) {
-				perror("thread_create(anim_loader_func) returned an error\n");
-				pim_quit = 1;
-				break;
-			}
-		}
-///
 	}
 
 	threads_running_incr(-1);
@@ -117,75 +113,97 @@ static void* load_waiter_func(void *arg)
 	return NULL;
 }
 
-static void* title_loader_func(void *arg)
+static void* loader_func(void *arg)
 {
 	threads_running_incr(+1);
 
+	int load = 0;
+	int success = 0;
 	struct gamecard *gc = (struct gamecard *)arg;
-	pthread_mutex_lock(&gc->title_lock);
 
-	if (gc->title_status == 0) {
-		gc->title_status = STATUS_LOADING;
+	// Check and update the status
+	pthread_mutex_lock(&gc->load_lock);
+	if (gc->load_status == 0) {
+		gc->load_status = STATUS_LOADING;
+		load = 1;
+	}
+	pthread_mutex_unlock(&gc->load_lock);
 
-		int w, h, size;
-		void *bmp = load_bitmap(gc->screenshot_path, &w, &h, &size);
-		if (bmp) {
+	if (!load) {
+		goto done;
+	}
+
+	int w, h, size;
+	void *bmp;
+	char path[PATH_MAX];
+    struct stat st;
+
+	snprintf(path, PATH_MAX - 1, TITLE_FMT, gc->archive);
+	if (stat(path, &st) == 0) {
+		// Found title card - load it
+		if ((bmp = load_bitmap(path, &w, &h, &size)) != NULL) {
 			gc->screenshot_width = w;
 			gc->screenshot_height = h;
 			gc->screenshot_bitmap = bmp;
-			gc->title_status = STATUS_LOADED;
 
 			buffer_memory_incr(size);
-		} else {
-			gc->title_status = STATUS_ERROR;
-			// FIXME: error loading bitmap - use a placeholder
+			bitmap_loaded_callback(gc);
+
+			fprintf(stderr, "%s: loaded title\n", gc->archive);
+			success = 1; // at least we have a title
 		}
 	}
 
-	pthread_mutex_unlock(&gc->title_lock);
-	bitmap_loaded_callback(gc);
-
-	threads_running_incr(-1);
-
-	return NULL;
-}
-
-static void* anim_loader_func(void *arg)
-{
-	threads_running_incr(+1);
-
-	struct gamecard *gc = (struct gamecard *)arg;
-	pthread_mutex_lock(&gc->frame_lock);
-
-	if (gc->frame_status == 0) {
-		gc->frame_status = STATUS_LOADING;
-
-		int count = 61; // FIXME
-		int written = 0;
-		char temp[100];
-		if ((gc->frames = (void **)calloc(count, sizeof(void*))) != NULL) {
-			int i;
-			for (i = 0; i < count; i++) {
-				int w, h, size;
-				snprintf(temp, 99, "mov/mvsc-%02d.png", i);
-				void *bmp = load_bitmap(temp, &w, &h, &size);
-				if (bmp != NULL) {
-					gc->frames[written++] = bmp;
-					buffer_memory_incr(size);
-					gc->frame_status = STATUS_LOADED;
-				} else {
-					gc->frame_status = STATUS_ERROR;
-				}
+	// Check to see if the first frame is available
+	snprintf(path, PATH_MAX - 1, FRAME_FMT, gc->archive, 0);
+	if (stat(path, &st) == 0) {
+		void *temp[FRAMES_MAX];
+		int i, found = 0, total_size = 0;
+		for (i = 1; i < FRAMES_MAX; i++) {
+			void *bmp = load_bitmap(path, &w, &h, &size);
+			if (bmp == NULL) {
+				break;
 			}
-			gc->frame_count = written;
+
+			if (gc->screenshot_width == 0 || gc->screenshot_height == 0) {
+				gc->screenshot_width = w;
+				gc->screenshot_height = h;
+			}
+
+			temp[found++] = bmp;
+			total_size += size;
+
+			snprintf(path, PATH_MAX - 1, FRAME_FMT, gc->archive, i);
 		}
 
-		fprintf(stderr, "Loaded %d frames for %s\n", gc->frame_count, gc->archive);
+		if (found > 0) {
+			if ((gc->frames = (void **)calloc(found, sizeof(void *))) == NULL) {
+				for (i = 0; i < found; i++) {
+					free(temp[i]);
+				}
+				goto cleanup;
+			}
+
+			for (i = 0; i < found; i++) {
+				gc->frames[i] = temp[i];
+			}
+
+			buffer_memory_incr(total_size);
+			gc->frame_count = found;
+
+			success = 1;
+			fprintf(stderr, "%s: loaded %d frames\n",
+				gc->archive, gc->frame_count);
+
+			bitmap_loaded_callback(gc);
+		}
 	}
 
-	pthread_mutex_unlock(&gc->frame_lock);
-	//bitmap_loaded_callback(gc);
-
+cleanup:
+	pthread_mutex_lock(&gc->load_lock);
+	gc->load_status = success ? STATUS_LOADED : STATUS_ERROR;
+	pthread_mutex_unlock(&gc->load_lock);
+done:
 	threads_running_incr(-1);
 
 	return NULL;

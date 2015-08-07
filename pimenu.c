@@ -19,6 +19,7 @@
 #include <GLES2/gl2.h>
 #include <SDL/SDL.h>
 #include <math.h>
+#include <sys/time.h>
 
 #include "cjson/cJSON.h"
 #include "phl_gles.h"
@@ -84,6 +85,13 @@ static struct gamecard *gamecards;
 static int card_count;
 static int previous_card = 0;
 static int selected_card = 0;
+static int exit_down = 0;
+
+static int launch_button = 5;
+static int exit_button = 6;
+static struct timeval exit_press_time;
+
+static int exit_press_duration = 2;
 
 #define STATE_INVISIBLE   0x0000
 #define STATE_VISIBLE     0x0001
@@ -133,7 +141,7 @@ const static struct anim_theme *anim_theme = &anim_themes[0];
 
 int pim_quit = 0;
 
-static const char *cmd_line_template = "cd ../fba-pi/; ./fbapi %s";
+static const char *cmd_line_template = "cd ../fba-pi/; ./fbapi -f %s";
 
 static void go_to(int which)
 {
@@ -203,8 +211,7 @@ static void handle_event(SDL_Event *event)
 	switch (event->type) {
 	case SDL_USEREVENT:
 		switch (event->user.code) {
-		case EVENT_RESET_GC:
-			{
+		case EVENT_RESET_GC: {
 				struct gamecard *gc = (struct gamecard *)event->user.data1;
 				if (gc->id == sprites[0].id) {
 					sprite_set_texture(&sprites[0], gc);
@@ -215,8 +222,7 @@ static void handle_event(SDL_Event *event)
 			break;
 		}
 		break;
-	case SDL_KEYDOWN:
-		{
+	case SDL_KEYDOWN: {
 			// FIXME
 			SDL_KeyboardEvent *keyEvent = (SDL_KeyboardEvent *)event;
 			if (keyEvent->keysym.sym == SDLK_LEFT) {
@@ -227,35 +233,52 @@ static void handle_event(SDL_Event *event)
 				if (selected_card > 0) {
 					launch(&gamecards[selected_card]);
 				}
-			} else if (keyEvent->keysym.sym == SDLK_ESCAPE) {
+			} else if (keyEvent->keysym.sym == SDLK_F12) {
 				pim_quit = 1;
 			}
 		}
 		break;
-	case SDL_JOYBUTTONDOWN:
-		// FIXME
-		fprintf(stderr, "joydown\n");
-		pim_quit = 1;
+	case SDL_JOYBUTTONDOWN: {
+			SDL_JoyButtonEvent *joyEvent = (SDL_JoyButtonEvent *)event;
+			if (joyEvent->which == 0) {
+				if (joyEvent->button == launch_button) {
+					if (selected_card > 0) {
+						launch(&gamecards[selected_card]);
+					}
+				} else if (joyEvent->button == exit_button) {
+					gettimeofday(&exit_press_time, NULL);
+					exit_down = 1;
+				}
+			}
+		}
 		break;
-	case SDL_JOYBUTTONUP:
-		// FIXME
-		fprintf(stderr, "joyup\n");
+	case SDL_JOYBUTTONUP: {
+			SDL_JoyButtonEvent *joyEvent = (SDL_JoyButtonEvent *)event;
+			if (joyEvent->which == 0) {
+				if (joyEvent->button == exit_button) {
+					exit_down = 0;
+				}
+			}
+		}
 		break;
-	case SDL_JOYAXISMOTION: 
-		{
+	case SDL_JOYAXISMOTION: {
 			SDL_JoyAxisEvent *joyEvent = (SDL_JoyAxisEvent *)event;
 			if (joyEvent->which == 0) {
 				if (joyEvent->axis == 0) {
 					if (joyEvent->value < -JOY_DEADZONE) {
 						go_to(GO_PREVIOUS);
+						exit_down = 0;
 					} else if (joyEvent->value > JOY_DEADZONE) {
 						go_to(GO_NEXT);
+						exit_down = 0;
 					}
 				} else if (joyEvent->axis == 1) {
 					if (joyEvent->value < -JOY_DEADZONE) {
 						// Up
+						exit_down = 0;
 					} else if (joyEvent->value > JOY_DEADZONE) {
 						// Down
+						exit_down = 0;
 					}
 				}
 			}
@@ -428,7 +451,6 @@ static int launch(const struct gamecard *gc)
 	char *cmd_line = calloc(len + 1, sizeof(char));
 	if (cmd_line != NULL) {
 		snprintf(cmd_line, len + 1, cmd_line_template, gc->archive);
-		
 		FILE *out = fopen("launch.sh", "w");
 		if (out != NULL) {
 			fprintf(out, "%s\n", cmd_line);
@@ -553,7 +575,6 @@ int main(int argc, char *argv[])
 				handle_event(&event);
 			}
 		}
-		
 		if (++frame > 1) {
 			frame = 0;
 			for (i = 0; i < SPRITES; i++) {
@@ -566,6 +587,15 @@ int main(int argc, char *argv[])
 					}
 					sprite_set_frame(sprite, gc);
 				}
+			}
+		}
+
+		if (exit_down) {
+			struct timeval now;
+			gettimeofday(&now, NULL);
+			if (now.tv_sec - exit_press_time.tv_sec >= exit_press_duration) {
+				pim_quit = 1;
+				exit_down = 0;
 			}
 		}
 

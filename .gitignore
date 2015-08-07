@@ -6,3 +6,4 @@ images
 out.stderr
 launch.sh
 *.json
+*.save

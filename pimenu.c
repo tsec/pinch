@@ -140,6 +140,7 @@ static struct anim_theme anim_themes[] = {
 const static struct anim_theme *anim_theme = &anim_themes[0];
 
 int pim_quit = 0;
+static int exit_code = 0;
 
 static const char *cmd_line_template = "cd ../fba-pi/; ./fbapi -f %s";
 
@@ -230,10 +231,11 @@ static void handle_event(SDL_Event *event)
 			} else if (keyEvent->keysym.sym == SDLK_RIGHT) {
 				go_to(GO_NEXT);
 			} else if (keyEvent->keysym.sym == SDLK_SPACE) {
-				if (selected_card > 0) {
+				if (selected_card >= 0) {
 					launch(&gamecards[selected_card]);
 				}
 			} else if (keyEvent->keysym.sym == SDLK_F12) {
+				exit_code = 0;
 				pim_quit = 1;
 			}
 		}
@@ -242,7 +244,7 @@ static void handle_event(SDL_Event *event)
 			SDL_JoyButtonEvent *joyEvent = (SDL_JoyButtonEvent *)event;
 			if (joyEvent->which == 0) {
 				if (joyEvent->button == launch_button) {
-					if (selected_card > 0) {
+					if (selected_card >= 0) {
 						launch(&gamecards[selected_card]);
 					}
 				} else if (joyEvent->button == exit_button) {
@@ -455,6 +457,7 @@ static int launch(const struct gamecard *gc)
 		if (out != NULL) {
 			fprintf(out, "%s\n", cmd_line);
 			fclose(out);
+			exit_code = 1;
 			pim_quit = 1;
 		} else {
 			perror("Error writing to launch script\n");
@@ -595,6 +598,7 @@ int main(int argc, char *argv[])
 			gettimeofday(&now, NULL);
 			if (now.tv_sec - exit_press_time.tv_sec >= exit_press_duration) {
 				pim_quit = 1;
+				exit_code = 2;
 				exit_down = 0;
 			}
 		}
@@ -619,5 +623,5 @@ int main(int argc, char *argv[])
 	state_save(&state, STATE_FILE);
 	state_destroy(&state);
 
-	return 0;
+	return exit_code;
 }

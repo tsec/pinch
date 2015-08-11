@@ -17,10 +17,19 @@
 
 LAUNCH=launch.sh
 
+full_path=`readlink -f $0`
+dir=`dirname $full_path`
+
+cd $dir
+
 while true; do
 	rm -f $LAUNCH
 	./pinch
-	if [ -e $LAUNCH ]; then
+	status=$?
+	if [ $status -eq 2 ]; then
+		sudo shutdown -h now
+		break
+	elif [ $status -eq 1 ]; then
 		sh $LAUNCH
 	else
 		break

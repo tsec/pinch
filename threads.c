@@ -136,7 +136,7 @@ static void* loader_func(void *arg)
 	int w, h, size;
 	void *bmp;
 	char path[PATH_MAX];
-    struct stat st;
+	struct stat st;
 
 	snprintf(path, PATH_MAX - 1, TITLE_FMT, gc->archive);
 	if (stat(path, &st) == 0) {

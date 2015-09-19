@@ -7,3 +7,5 @@ out.stderr
 launch.sh
 *.json
 *.save
+tally.err
+tally.sh

@@ -86,10 +86,12 @@ static int card_count;
 static int previous_card = 0;
 static int selected_card = 0;
 static int exit_down = 0;
+static int kiosk_timeout = 0;
 
 static int launch_button = 5;
 static int exit_button = 6;
 static struct timeval exit_press_time;
+static struct timeval last_input_event;
 
 static int exit_press_duration = 2;
 
@@ -137,12 +139,10 @@ static struct anim_theme anim_themes[] = {
 	},
 };
 
-const static struct anim_theme *anim_theme = &anim_themes[0];
+const static struct anim_theme *anim_theme = &anim_themes[1];
 
 int pim_quit = 0;
 static int exit_code = 0;
-
-static const char *cmd_line_template = "cd ../fba-pi/; ./fbapi -f %s";
 
 static void go_to(int which)
 {
@@ -209,6 +209,9 @@ static void preload(int current)
 
 static void handle_event(SDL_Event *event)
 {
+	struct timeval now;
+	gettimeofday(&now, NULL);
+
 	switch (event->type) {
 	case SDL_USEREVENT:
 		switch (event->user.code) {
@@ -228,13 +231,17 @@ static void handle_event(SDL_Event *event)
 			SDL_KeyboardEvent *keyEvent = (SDL_KeyboardEvent *)event;
 			if (keyEvent->keysym.sym == SDLK_LEFT) {
 				go_to(GO_PREVIOUS);
+				last_input_event = now;
 			} else if (keyEvent->keysym.sym == SDLK_RIGHT) {
 				go_to(GO_NEXT);
+				last_input_event = now;
 			} else if (keyEvent->keysym.sym == SDLK_SPACE) {
 				if (selected_card >= 0) {
 					launch(&gamecards[selected_card]);
 				}
+				last_input_event = now;
 			} else if (keyEvent->keysym.sym == SDLK_F12) {
+				last_input_event = now;
 				exit_code = 0;
 				pim_quit = 1;
 			}
@@ -247,8 +254,10 @@ static void handle_event(SDL_Event *event)
 					if (selected_card >= 0) {
 						launch(&gamecards[selected_card]);
 					}
+					last_input_event = now;
 				} else if (joyEvent->button == exit_button) {
 					gettimeofday(&exit_press_time, NULL);
+					last_input_event = now;
 					exit_down = 1;
 				}
 			}
@@ -269,17 +278,21 @@ static void handle_event(SDL_Event *event)
 				if (joyEvent->axis == 0) {
 					if (joyEvent->value < -JOY_DEADZONE) {
 						go_to(GO_PREVIOUS);
+						last_input_event = now;
 						exit_down = 0;
 					} else if (joyEvent->value > JOY_DEADZONE) {
 						go_to(GO_NEXT);
+						last_input_event = now;
 						exit_down = 0;
 					}
 				} else if (joyEvent->axis == 1) {
 					if (joyEvent->value < -JOY_DEADZONE) {
 						// Up
+						last_input_event = now;
 						exit_down = 0;
 					} else if (joyEvent->value > JOY_DEADZONE) {
 						// Down
+						last_input_event = now;
 						exit_down = 0;
 					}
 				}
@@ -449,11 +462,11 @@ static int launch(const struct gamecard *gc)
 
 	fprintf(stderr, "Launching %s...\n", gc->archive);
 
-	int len = snprintf(NULL, 0, cmd_line_template, gc->archive);
+	int len = snprintf(NULL, 0, "%s", gc->archive);
 	char *cmd_line = calloc(len + 1, sizeof(char));
 	if (cmd_line != NULL) {
-		snprintf(cmd_line, len + 1, cmd_line_template, gc->archive);
-		FILE *out = fopen("launch.sh", "w");
+		snprintf(cmd_line, len + 1, "%s", gc->archive);
+		FILE *out = fopen("launch.name", "w");
 		if (out != NULL) {
 			fprintf(out, "%s\n", cmd_line);
 			fclose(out);
@@ -515,6 +528,27 @@ int config_load(const char *path)
 
 int main(int argc, char *argv[])
 {
+	gettimeofday(&last_input_event, NULL);
+	srand(time(NULL));
+	
+	int i;
+	int autolaunch = 0;
+	for (i = 1; i < argc; i++) {
+		if (*argv[i] == '-') {
+			if (strcasecmp(argv[i] + 1, "-launch-next") == 0) {
+				autolaunch = 1;
+			} else if (strcasecmp(argv[i] + 1, "k") == 0) {
+				if (++i < argc) {
+					int secs = atoi(argv[i]);
+					if (secs > 0) {
+						kiosk_timeout = secs;
+						printf("Kiosk mode enabled (%d seconds)\n", secs);
+					}
+				}
+			}
+		}
+	}
+
 	if (init_threads() != 0) {
 		fprintf(stderr, "error: Thread init failed\n");
 		return 1;
@@ -530,28 +564,29 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (SDL_Init(SDL_INIT_JOYSTICK|SDL_INIT_EVENTTHREAD|SDL_INIT_VIDEO) != 0) {
-		fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-		destroy_threads();
-		return 1;
-	}
+	if (!autolaunch) {
+		if (SDL_Init(SDL_INIT_JOYSTICK|SDL_INIT_EVENTTHREAD|SDL_INIT_VIDEO) != 0) {
+			fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+			destroy_threads();
+			return 1;
+		}
 
-	SDL_JoystickEventState(SDL_ENABLE);
+		SDL_JoystickEventState(SDL_ENABLE);
 
-	if (init_video()) {
-		fprintf(stderr, "init_video() failed\n");
-		destroy_threads();
-		SDL_Quit();
-		return 1;
-	}
+		if (init_video()) {
+			fprintf(stderr, "init_video() failed\n");
+			destroy_threads();
+			SDL_Quit();
+			return 1;
+		}
 
-	if (SDL_NumJoysticks() > 0) {
-		SDL_JoystickOpen(0);
+		if (SDL_NumJoysticks() > 0) {
+			SDL_JoystickOpen(0);
+		}
 	}
 
 	state_load(&state, STATE_FILE);
 
-	int i;
 	selected_card = 0;
 	if (state.last_selected) {
 		for (i = 0; i < card_count; i++) {
@@ -562,55 +597,73 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	sprites[0].id = selected_card;
-	sprites[0].state = STATE_VISIBLE;
-
-	preload(selected_card);
-
-	SDL_Event event;
-	int frame = 0;
-	while (!pim_quit) {
-		while (SDL_PollEvent(&event)) {
-			if (event.type == SDL_QUIT ) {
-				pim_quit = 1;
-				break;
-			} else {
-				handle_event(&event);
-			}
+	if (autolaunch) {
+		if (++selected_card >= card_count) {
+			selected_card = 0;
 		}
-		if (++frame > 1) {
-			frame = 0;
-			for (i = 0; i < SPRITES; i++) {
-				struct sprite *sprite = &sprites[i];
-				struct gamecard *gc = &gamecards[sprite->id];
+		launch(&gamecards[selected_card]);
+	} else { // if (!autolaunch)
+		sprites[0].id = selected_card;
+		sprites[0].state = STATE_VISIBLE;
 
-				if (gc->frame_count > 0) {
-					if (++gc->frame >= gc->frame_count) {
-						gc->frame = 0;
-					}
-					sprite_set_frame(sprite, gc);
+		preload(selected_card);
+
+		SDL_Event event;
+		int frame = 0;
+		while (!pim_quit) {
+			while (SDL_PollEvent(&event)) {
+				if (event.type == SDL_QUIT ) {
+					pim_quit = 1;
+					break;
+				} else {
+					handle_event(&event);
 				}
 			}
-		}
+			if (++frame > 1) {
+				frame = 0;
+				for (i = 0; i < SPRITES; i++) {
+					struct sprite *sprite = &sprites[i];
+					struct gamecard *gc = &gamecards[sprite->id];
 
-		if (exit_down) {
+					if (gc->frame_count > 0) {
+						if (++gc->frame >= gc->frame_count) {
+							gc->frame = 0;
+						}
+						sprite_set_frame(sprite, gc);
+					}
+				}
+			}
+
 			struct timeval now;
 			gettimeofday(&now, NULL);
-			if (now.tv_sec - exit_press_time.tv_sec >= exit_press_duration) {
-				pim_quit = 1;
-				exit_code = 2;
-				exit_down = 0;
+
+			if (exit_down) {
+				if (now.tv_sec - exit_press_time.tv_sec >= exit_press_duration) {
+					pim_quit = 1;
+					exit_code = 2;
+					exit_down = 0;
+				}
 			}
+
+			if (kiosk_timeout > 0) {
+				if (now.tv_sec - last_input_event.tv_sec >= kiosk_timeout) {
+					fprintf(stderr, "Kiosk mode - %ds timeout exceeded\n", kiosk_timeout);
+					// Pick a random title and launch it
+					selected_card = rand() % card_count;
+					launch(&gamecards[selected_card]);
+					exit_code = 3;
+				}
+			}
+
+			draw();
 		}
 
-		draw();
+		destroy_threads();
+		destroy_video();
+		SDL_Quit();
 	}
 
-	destroy_threads();
-	destroy_video();
-	SDL_Quit();
-
-	if (selected_card > 0) {
+	if (selected_card >= 0) {
 		state_set_last_selected(&state, gamecards[selected_card].archive);
 	}
 

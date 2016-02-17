@@ -59,6 +59,7 @@ static void go_to(int which);
 static void handle_event(SDL_Event *event);
 static void preload(int current);
 static int launch(const struct gamecard *gc);
+static int config_load(const char *path);
 
 static const char *vertex_shader_src =
 	"uniform mat4 u_vp_matrix;"
@@ -81,15 +82,17 @@ static const char *fragment_shader_src =
 		"gl_FragColor = texture2D(u_texture, v_texcoord) * v_color;"
 	"}";
 
-static struct gamecard *gamecards;
-static int card_count;
+static struct emulator *emulators = NULL;
+static struct gamecard *gamecards = NULL;
+static int card_count = 0;
+static int emulator_count = 0;
 static int previous_card = 0;
 static int selected_card = 0;
 static int exit_down = 0;
 static int kiosk_timeout = 0;
 
-static int launch_button = 5;
-static int exit_button = 6;
+static int launch_button = 0;
+static int exit_button = 1;
 static struct timeval exit_press_time;
 static struct timeval last_input_event;
 
@@ -458,66 +461,130 @@ void bitmap_loaded_callback(struct gamecard *gc)
 
 static int launch(const struct gamecard *gc)
 {
-	int success = 0;
-
 	fprintf(stderr, "Launching %s...\n", gc->archive);
 
-	int len = snprintf(NULL, 0, "%s", gc->archive);
-	char *cmd_line = calloc(len + 1, sizeof(char));
-	if (cmd_line != NULL) {
-		snprintf(cmd_line, len + 1, "%s", gc->archive);
-		FILE *out = fopen("launch.name", "w");
-		if (out != NULL) {
-			fprintf(out, "%s\n", cmd_line);
-			fclose(out);
-			exit_code = 1;
-			pim_quit = 1;
-		} else {
-			perror("Error writing to launch script\n");
-		}
-		free(cmd_line);
-	} else {
-		perror("Error allocating space for executable path\n");
-		success = 1;
+	FILE *out = fopen("launch.sh", "w");
+	if (out != NULL) {
+		const struct emulator *e = gc->emulator;
+
+		fprintf(out, "cd %s\n", e->path);
+		fprintf(out, "./%s %s %s %s\n", e->exe,
+			e->args != NULL ? e->args : "",
+			gc->args != NULL ? gc->args : "",
+			gc->archive);
+		fprintf(out, "exit $?");
+		fclose(out);
 	}
 
-	return success;
+	exit_code = 1;
+	pim_quit = 1;
+
+	return 1;
 }
 
-int config_load(const char *path)
+static int compare_gamecards(const void *a, const void *b)
+{
+	struct gamecard *gca = (struct gamecard *) a;
+	struct gamecard *gcb = (struct gamecard *) b;
+
+	if (gca->title == NULL) {
+		return gcb->title == NULL ? 0 : 1;
+	} else if (gcb->title == NULL) {
+		return gca->title == NULL ? 0 : -1;
+	}
+
+	return strcasecmp(gca->title, gcb->title);
+}
+
+static int config_load(const char *path)
 {
 	int ret_val = 1;
+	int gc_size = sizeof(struct gamecard);
+
 	char *contents = glob_file(path);
 	if (contents) {
 		cJSON *root = cJSON_Parse(contents);
 		if (root) {
-			cJSON *sets_node = cJSON_GetObjectItem(root, "sets");
-			if (sets_node != NULL) {
-				card_count = cJSON_GetArraySize(sets_node);
-				if (card_count > 0) {
-					gamecards = (struct gamecard *)calloc(card_count, sizeof(struct gamecard));
-					if (gamecards != NULL) {
-						int i;
-						struct gamecard *gc;
-						for (i = 0, gc = gamecards; i < card_count; i++, gc++) {
-							cJSON *item = cJSON_GetArrayItem(sets_node, i);
-							if (item != NULL) {
-								gamecard_init(gc);
+			cJSON *emus_node = cJSON_GetObjectItem(root, "emulators");
+			if (emus_node != NULL) {
+				emulator_count = cJSON_GetArraySize(emus_node);
+				if (emulator_count > 0) {
+					emulators = (struct emulator *)calloc(emulator_count, sizeof(struct emulator));
+					if (emulators != NULL) {
+						int ei;
+						struct emulator *e;
+						for (ei = 0, e = emulators; ei < emulator_count; ei++, e++) {
+							cJSON *emu_node = cJSON_GetArrayItem(emus_node, ei);
+							if (emu_node != NULL) {
+								emulator_init(e);
 
-								cJSON *archive_node = cJSON_GetObjectItem(item, "archive");
-								if (archive_node) {
-									gc->archive = strdup(archive_node->valuestring);
-									gc->id = i;
+								cJSON *node = cJSON_GetObjectItem(emu_node, "dir");
+								if (node != NULL) {
+									e->path = strdup(node->valuestring);
+								}
+								node = cJSON_GetObjectItem(emu_node, "exe");
+								if (node != NULL) {
+									e->exe = strdup(node->valuestring);
+								}
+								node = cJSON_GetObjectItem(emu_node, "args");
+								if (node != NULL) {
+									e->args = strdup(node->valuestring);
+								}
 
-									int length = snprintf(NULL, 0, SCREENSHOT_TEMPLATE, gc->archive);
-									gc->screenshot_path = (char *)malloc(sizeof(char) * (length + 1));
-									sprintf(gc->screenshot_path, SCREENSHOT_TEMPLATE, gc->archive);
+								cJSON *sets_node = cJSON_GetObjectItem(emu_node, "sets");
+								if (sets_node != NULL) {
+									int array_size = cJSON_GetArraySize(sets_node);
+									if (array_size > 0) {
+										struct gamecard *new_cards = (struct gamecard *)realloc(gamecards,
+											(card_count + array_size) * gc_size);
+										if (new_cards != NULL) {
+											int ci;
+											struct gamecard *gc;
+											gamecards = new_cards;
+											for (ci = 0, gc = gamecards + card_count; ci < array_size; ci++, gc++) {
+												cJSON *set_node = cJSON_GetArrayItem(sets_node, ci);
+												if (set_node != NULL) {
+													gamecard_init(gc);
+
+													gc->emulator = e;
+													// gc->id = ci; // Compute post-sort
+
+													node = cJSON_GetObjectItem(set_node, "archive");
+													if (node) {
+														gc->archive = strdup(node->valuestring);
+
+														int length = snprintf(NULL, 0, SCREENSHOT_TEMPLATE, gc->archive);
+														gc->screenshot_path = (char *)malloc(sizeof(char) * (length + 1));
+														sprintf(gc->screenshot_path, SCREENSHOT_TEMPLATE, gc->archive);
+													}
+													node = cJSON_GetObjectItem(set_node, "title");
+													if (node) {
+														gc->title = strdup(node->valuestring);
+													}
+												}
+											}
+											card_count += array_size;
+										}
+									}
 								}
 							}
 						}
 					}
 				}
 			}
+
+			cJSON *controls_node = cJSON_GetObjectItem(root, "controls");
+			if (controls_node != NULL) {
+				cJSON *node = cJSON_GetObjectItem(controls_node, "startButton");
+				if (node != NULL) {
+					launch_button = node->valueint;
+				}
+				node = cJSON_GetObjectItem(controls_node, "exitButton");
+				if (node != NULL) {
+					exit_button = node->valueint;
+				}
+			}
+
 			cJSON_Delete(root);
 		}
 		free(contents);
@@ -558,7 +625,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Error reading config file\n");
 		return 1;
 	}
-
+	
 	if (card_count < 1) {
 		fprintf(stderr, "No sets found in config file\n");
 		return 1;
@@ -587,13 +654,14 @@ int main(int argc, char *argv[])
 
 	state_load(&state, STATE_FILE);
 
+	qsort(gamecards, card_count, sizeof(struct gamecard), compare_gamecards);
+
 	selected_card = 0;
-	if (state.last_selected) {
-		for (i = 0; i < card_count; i++) {
-			if (strcmp(gamecards[i].archive, state.last_selected) == 0) {
-				selected_card = i;
-				break;
-			}
+	for (i = 0; i < card_count; i++) {
+		gamecards[i].id = i;
+		if (state.last_selected && strcmp(gamecards[i].archive, state.last_selected) == 0) {
+			selected_card = i;
+			// break;
 		}
 	}
 
@@ -672,6 +740,12 @@ int main(int argc, char *argv[])
 		gamecard_free(gc);
 	}
 	free(gamecards);
+
+	struct emulator *e;
+	for (i = 0, e = emulators; i < emulator_count; i++, e++) {
+		emulator_free(e);
+	}
+	free(emulators);
 
 	state_save(&state, STATE_FILE);
 	state_destroy(&state);

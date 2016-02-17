@@ -17,6 +17,15 @@
 #ifndef GAMECARD_H
 #define GAMECARD_H
 
+struct emulator {
+	char *path;
+	char *exe;
+	char *args;
+};
+
+void emulator_init(struct emulator *e);
+void emulator_free(struct emulator *e);
+
 #define STATUS_LOADING 1
 #define STATUS_LOADED  2
 #define STATUS_ERROR   3
@@ -24,7 +33,9 @@
 struct gamecard {
 	int id;
 	char *archive;
+	char *args;
 	char *screenshot_path;
+	char *title;
 	void *screenshot_bitmap;
 	int screenshot_width;
 	int screenshot_height;
@@ -33,6 +44,7 @@ struct gamecard {
 	void **frames;
 	int frame_count;
 	int frame;
+	const struct emulator *emulator;
 };
 
 void gamecard_init(struct gamecard *gc);

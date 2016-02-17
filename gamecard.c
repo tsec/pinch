@@ -21,6 +21,18 @@
 
 #include "gamecard.h"
 
+void emulator_init(struct emulator *e)
+{
+	memset(e, 0, sizeof(e));
+}
+
+void emulator_free(struct emulator *e)
+{
+	free(e->path); e->path = NULL;
+	free(e->exe);  e->exe = NULL;
+	free(e->args); e->args = NULL;
+}
+
 void gamecard_dump(const struct gamecard *gc)
 {
 	fprintf(stderr, "[%s,%s,%s,%dx%d]\n", gc->archive, gc->screenshot_path,
@@ -40,6 +52,8 @@ void gamecard_free(struct gamecard *gc)
 	free(gc->archive); gc->archive = NULL;
 	free(gc->screenshot_path); gc->screenshot_path = NULL;
 	free(gc->screenshot_bitmap); gc->screenshot_bitmap = NULL;
+	free(gc->args); gc->args = NULL;
+	free(gc->title); gc->title = NULL;
 
 	int i;
 	for (i = 0; i < gc->frame_count; i++) {

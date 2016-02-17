@@ -149,7 +149,8 @@ static void* loader_func(void *arg)
 			buffer_memory_incr(size);
 			bitmap_loaded_callback(gc);
 
-			fprintf(stderr, "%s: loaded title\n", gc->archive);
+			fprintf(stderr, "%s: loaded title (%ix%i, %ikB)\n",
+				gc->archive, w, h, size / 1024);
 			success = 1; // at least we have a title
 		}
 	}

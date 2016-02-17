@@ -15,13 +15,9 @@
 ## limitations under the License.
 ##
 
-EMU_DIR=../fba-pi
-
-EMU_EXE=fbapi
-EMU_ARGS="-f -k 120"
+LAUNCH_FILE=launch.sh
 LAUNCH_ARGS="-k 120"
 TALLY_EXE=tally.sh
-LAUNCH=launch.name
 SCRIPT_PATH=`readlink -f $0`
 SCRIPT_DIR=`dirname ${SCRIPT_PATH}`
 
@@ -29,25 +25,24 @@ cd "${SCRIPT_DIR}"
 ALL_LAUNCH_ARGS=${LAUNCH_ARGS}
 
 while true; do
-	rm -f ${LAUNCH}
+	rm -f ${LAUNCH_FILE}
 	./pinch ${ALL_LAUNCH_ARGS}
 	status=$?
 	if [ $status -eq 2 ]; then
 		sudo shutdown -h now
 		break
 	elif [ $status -eq 1 ] || [ $status -eq 3 ]; then
-		name=`cat ${LAUNCH}`
+		# name=`cat ${LAUNCH}`
 
-		if [ $status -ne 3 ]; then
-			if [ -f ${TALLY_EXE} ]; then
-				./${TALLY_EXE} "${name}" &
-			fi
-		fi
-
+		# if [ $status -ne 3 ]; then
+		# 	if [ -f ${TALLY_EXE} ]; then
+		# 		./${TALLY_EXE} "${name}" &
+		# 	fi
+		# fi
+		
 		ALL_LAUNCH_ARGS=${LAUNCH_ARGS}
+		sh ${LAUNCH_FILE}
 
-		cd ${EMU_DIR}
-		./${EMU_EXE} ${EMU_ARGS} "${name}"
 		if [ $? -eq 2 ]; then #timed out
 			ALL_LAUNCH_ARGS="${ALL_LAUNCH_ARGS} --launch-next"
 		fi

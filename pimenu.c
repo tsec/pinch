@@ -561,6 +561,10 @@ static int config_load(const char *path)
 													if (node) {
 														gc->title = strdup(node->valuestring);
 													}
+													node = cJSON_GetObjectItem(set_node, "args");
+													if (node) {
+														gc->args = strdup(node->valuestring);
+													}
 												}
 											}
 											card_count += array_size;

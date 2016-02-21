@@ -467,12 +467,13 @@ static int launch(const struct gamecard *gc)
 	if (out != NULL) {
 		const struct emulator *e = gc->emulator;
 
+		fprintf(out, "# %s\n", gc->archive);
 		fprintf(out, "cd %s\n", e->path);
 		fprintf(out, "./%s %s %s %s\n", e->exe,
 			e->args != NULL ? e->args : "",
 			gc->args != NULL ? gc->args : "",
 			gc->archive);
-		fprintf(out, "exit $?");
+		fprintf(out, "exit $?\n");
 		fclose(out);
 	}
 

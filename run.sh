@@ -32,13 +32,12 @@ while true; do
 		sudo shutdown -h now
 		break
 	elif [ $status -eq 1 ] || [ $status -eq 3 ]; then
-		# name=`cat ${LAUNCH}`
-
-		# if [ $status -ne 3 ]; then
-		# 	if [ -f ${TALLY_EXE} ]; then
-		# 		./${TALLY_EXE} "${name}" &
-		# 	fi
-		# fi
+		name=`head -1 "${LAUNCH_FILE}" | sed -E 's/# +//'`
+		if [ $status -ne 3 ]; then
+			if [ -f ${TALLY_EXE} ]; then
+				./${TALLY_EXE} "${name}" &
+			fi
+		fi
 		
 		ALL_LAUNCH_ARGS=${LAUNCH_ARGS}
 		sh ${LAUNCH_FILE}
